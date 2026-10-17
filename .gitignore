@@ -1,0 +1,11 @@
+downloads_long/
+downloads_short/
+downloads_long_smart/
+work_long_smart/
+state/cookies.txt
+*.mp4
+*.vtt
+client_secret*.json
+youtube_token.json
+__pycache__/
+*.pyc

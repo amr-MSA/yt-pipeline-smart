@@ -1,0 +1,94 @@
+name: Long Pipeline (Telegram → YouTube)
+
+on:
+  schedule:
+    # كل ساعة حسب UTC؛ يعالج كل ما بقي في Inbox، بما فيه الأعمال القديمة الفاشلة.
+    - cron: '0 * * * *'
+  workflow_dispatch: {}
+
+concurrency:
+  group: long-pipeline
+  cancel-in-progress: false
+
+jobs:
+  run-long-pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up Deno for yt-dlp EJS
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.3.0
+
+      - name: Install ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+
+      - name: Verify media runtimes
+        run: |
+          deno --version
+          ffmpeg -version | head -n 1
+
+      - name: Install Python dependencies
+        run: pip install -q -r requirements.txt
+
+      - name: Verify yt-dlp EJS installation
+        run: |
+          python -c 'import importlib.metadata; import yt_dlp; print("yt-dlp=" + yt_dlp.version.__version__); print("yt-dlp-ejs=" + importlib.metadata.version("yt-dlp-ejs"))'
+
+      - name: Run long pipeline
+        working-directory: scripts
+        env:
+          PYTHONUNBUFFERED: '1'
+          LONG_BOT_TOKEN: ${{ secrets.LONG_BOT_TOKEN }}
+          YOUTUBE_TOKEN_JSON: ${{ secrets.YOUTUBE_TOKEN_JSON }}
+          YT_COOKIES: ${{ secrets.YT_COOKIES }}
+          PIPELINE_RUN_MODE: ${{ github.event_name == 'workflow_dispatch' && 'manual' || 'daily' }}
+        run: python -u long_pipeline.py
+
+      - name: Commit updated state (Inbox, offsets and upload acknowledgements)
+        if: always()
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # أضف كل ملفات الحالة الموجودة؛ لا تستخدم pathspec لملفات قد لا تكون
+          # أنشئت في أول تشغيل، لأن git add سيفشل ويمنع حفظ بقية الحالة.
+          git add -A state/
+          if git diff --cached --quiet; then
+            echo "لا تغييرات في الحالة."
+            exit 0
+          fi
+          git commit -m "chore: update long bot state [skip ci]"
+
+          # إعادة المحاولة إذا سبقتنا تشغيلة أخرى في تحديث main.
+          # ملاحظة مهمة: عند تعارض، لا نستخدم أبدًا `git reset --hard` الذي
+          # كان يمحو الـ commit المحلي بالكامل (وبالتالي offset/uploaded_messages
+          # الجديدين) في حال فشل merge لاحق أيضًا — وهذا بالضبط ما كان يسبب
+          # إعادة نشر نفس الفيديو مرتين. بدلًا من ذلك نستخدم `-X ours` على
+          # ملفات state فقط، بما أن السكربت نفسه (merge_latest_state) يضمن
+          # أن نسختنا المحلية أصلًا تحتوي على كل تسجيلات origin/main مدموجة
+          # حقليًا، فهي دائمًا أحدث أو مساوية لما في origin/main.
+          for i in 1 2 3 4 5; do
+            if git push; then
+              echo "✅ تم رفع تحديث الحالة."
+              exit 0
+            fi
+            echo "⚠️ فشل push (محاولة $i)، جاري إعادة الأساس والمحاولة..."
+            git fetch origin main
+            if ! git rebase -X ours origin/main; then
+              git rebase --abort || true
+              git merge -X ours origin/main -m "merge state (keep local, already field-merged)"
+            fi
+            sleep 3
+          done
+
+          echo "❌ فشل رفع تحديث الحالة بعد عدة محاولات." >&2
+          exit 1

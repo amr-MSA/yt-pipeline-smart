@@ -1,0 +1,112 @@
+name: Smart Channel - Shorts Publisher
+
+on:
+  schedule:
+    # يبدأ بعد مسار long بربع ساعة لتقليل تصادمات تحديث state/.
+    - cron: '15 4 * * *'
+    - cron: '15 9 * * *'
+    - cron: '15 10 * * *'
+    - cron: '15 11 * * *'
+    - cron: '15 14 * * *'
+    - cron: '15 17 * * *'
+    - cron: '15 19 * * *'
+    - cron: '15 21 * * *'
+  workflow_dispatch:
+    inputs:
+      manual_long_url:
+        description: "رابط واحد لتحليله كـ Smart Long (اختياري)"
+        required: false
+        type: string
+      manual_long_chat_id:
+        description: "معرّف محادثة Telegram لإرسال النتيجة"
+        required: false
+        default: "6828354904"
+        type: string
+
+concurrency:
+  group: shorts-pipeline
+  cancel-in-progress: false
+
+jobs:
+  run-shorts-pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up Deno for yt-dlp EJS
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.3.0
+
+      - name: Install ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+
+      - name: Install Python dependencies
+        run: pip install -q -r requirements.txt
+
+      - name: Verify media runtimes
+        run: |
+          deno --version
+          ffmpeg -version | head -n 1
+
+      - name: Verify yt-dlp EJS installation
+        run: |
+          python -c 'import importlib.metadata; import yt_dlp; print("yt-dlp=" + yt_dlp.version.__version__); print("yt-dlp-ejs=" + importlib.metadata.version("yt-dlp-ejs"))'
+
+      - name: Run shorts pipeline
+        working-directory: scripts
+        env:
+          SHORTS_BOT_TOKEN: ${{ secrets.SHORTS_BOT_TOKEN }}
+          YOUTUBE_TOKEN_JSON: ${{ secrets.YOUTUBE_TOKEN_JSON }}
+          YT_COOKIES: ${{ secrets.YT_COOKIES }}
+          YT_TRANSCRIPT_PROXY: ${{ secrets.YT_TRANSCRIPT_PROXY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          MANUAL_LONG_URL: ${{ inputs.manual_long_url }}
+          MANUAL_LONG_CHAT_ID: ${{ inputs.manual_long_chat_id }}
+        run: python shorts_pipeline.py
+
+      - name: Commit updated state (offsets + message ledger + long-smart queues)
+        if: always()
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add state/ || true
+          if git diff --cached --quiet; then
+            echo "لا تغييرات في الحالة."
+            exit 0
+          fi
+          git commit -m "chore: update shorts bot offset / long-smart queues [skip ci]"
+
+          # قد تكون هناك تشغيلة أخرى (لونق) عملت push في نفس الوقت بالضبط
+          # (نفس جدول الـ cron)، لذلك نعيد المحاولة بدل فشل صامت يُضيّع الـ offset الجديد.
+          #
+          # ملاحظة مهمة: لا نستخدم أبدًا `git reset --hard` الذي كان يمحو
+          # الـ commit المحلي بالكامل (offset/message_ledger الجديدين) عند فشل
+          # merge لاحق أيضًا — وهذا بالضبط ما كان يسبب إعادة نشر نفس الفيديو
+          # مرتين. بدلًا من ذلك نستخدم `-X ours` على ملفات state، بما أن
+          # السكربت نفسه (merge_latest_state) يضمن أن نسختنا المحلية أصلًا
+          # تحتوي على كل تسجيلات origin/main مدموجة حقليًا مسبقًا.
+          for i in 1 2 3 4 5; do
+            if git push; then
+              echo "✅ تم رفع تحديث الحالة."
+              exit 0
+            fi
+            echo "⚠️ فشل push (محاولة $i)، جاري git pull --rebase وإعادة المحاولة..."
+            git fetch origin main
+            if ! git rebase -X ours origin/main; then
+              git rebase --abort || true
+              git merge -X ours origin/main -m "merge state (keep local, already field-merged)"
+            fi
+            sleep 3
+          done
+
+          echo "❌ فشل رفع تحديث الحالة بعد عدة محاولات." >&2
+          exit 1

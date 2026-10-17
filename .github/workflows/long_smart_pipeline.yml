@@ -1,0 +1,82 @@
+name: Smart Channel - Long-Smart Publisher
+
+on:
+  schedule:
+    # يبدأ بعد long وshort بفاصل 15 دقيقة ضمن الترتيب اليومي — ينشر مقطعًا واحدًا
+    # من كل طابور نشط، ضمن حد يومي منفصل (افتراضيًا 8) خاص بهذا الخط فقط.
+    - cron: '30 4 * * *'   # 07:30 بتوقيت السعودية (UTC+3)
+  workflow_dispatch: {}
+
+concurrency:
+  group: long-smart-pipeline
+  cancel-in-progress: false
+
+jobs:
+  run-long-smart-batch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up Deno for yt-dlp EJS
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.3.0
+
+      - name: Install ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+
+      - name: Install Python dependencies
+        run: pip install -q -r requirements.txt
+
+      - name: Verify media runtimes
+        run: |
+          deno --version
+          ffmpeg -version | head -n 1
+
+      - name: Verify yt-dlp EJS installation
+        run: |
+          python -c 'import importlib.metadata; import yt_dlp; print("yt-dlp=" + yt_dlp.version.__version__); print("yt-dlp-ejs=" + importlib.metadata.version("yt-dlp-ejs"))'
+
+      - name: Run long-smart daily batch
+        working-directory: scripts
+        env:
+          SHORTS_BOT_TOKEN: ${{ secrets.SHORTS_BOT_TOKEN }}
+          YOUTUBE_TOKEN_JSON: ${{ secrets.YOUTUBE_TOKEN_JSON }}
+          YT_COOKIES: ${{ secrets.YT_COOKIES }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python long_smart_pipeline.py
+
+      - name: Commit updated state (queues + quota)
+        if: always()
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A state/ || true
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: update long-smart queue/quota state [skip ci]"
+            for i in 1 2 3 4 5; do
+              if git push; then
+                echo "✅ تم رفع تحديث الحالة."
+                exit 0
+              fi
+              echo "⚠️ فشل push (محاولة $i)، جاري إعادة الأساس والمحاولة..."
+              git fetch origin main
+              if ! git rebase -X ours origin/main; then
+                git rebase --abort || true
+                git merge -X ours origin/main -m "merge long-smart state (keep local)"
+              fi
+              sleep 3
+            done
+            echo "❌ فشل رفع تحديث حالة long-smart بعد عدة محاولات." >&2
+            exit 1
+          else
+            echo "لا تغييرات في الحالة."
+          fi
