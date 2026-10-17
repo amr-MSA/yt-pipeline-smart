@@ -22,7 +22,9 @@
     - العنوان والوصف النهائيان = عنوان/وصف جيمناي + توقيع ثابت من
       assets/fixed_title.txt و assets/fixed_description.txt.
 """
+import glob
 import os
+import random
 import subprocess
 import sys
 import traceback
@@ -47,6 +49,7 @@ DAILY_LIMIT = 8  # حد نشر يومي منفصل خاص بخط long-smart فق
 TRANSCRIPT_CHUNK_CHARS = 45000
 
 TEMPLATE_PATH = os.path.join(PROJECT_DIR, "assets", "template.png")
+TEMPLATE_GLOB = os.path.join(PROJECT_DIR, "assets", "templates", "shorts", "*.png")
 TEMPLATE_NATIVE_W, TEMPLATE_NATIVE_H = 720, 1280  # أبعاد assets/template.png
 TEMPLATE_BOX_X, TEMPLATE_BOX_Y = 48, 202  # بداية فتحة الفيديو داخل الإطار
 TEMPLATE_BOX_W, TEMPLATE_BOX_H = 624, 870  # أبعاد الفتحة الداخلية
@@ -184,10 +187,20 @@ def _download_clip_range(url: str, start: float, end: float, out_path: str, cook
             ydl.extract_info(url, download=True)
 
 
+def _choose_shorts_template() -> str | None:
+    candidates = sorted(glob.glob(TEMPLATE_GLOB))
+    if os.path.exists(TEMPLATE_PATH):
+        candidates.append(TEMPLATE_PATH)
+    candidates = sorted(set(candidates))
+    return random.choice(candidates) if candidates else None
+
+
 def _apply_shorts_template(raw_path: str, final_path: str) -> bool:
-    if not os.path.exists(TEMPLATE_PATH):
+    template_path = _choose_shorts_template()
+    if not template_path:
         print("⚠️ لا يوجد قالب شورتس — سيُرفع المقطع بدون قالب.")
         return False
+    print(f"[LONG-SMART][TEMPLATE] selected={os.path.basename(template_path)}", flush=True)
 
     sx = SHORTS_OUTPUT_W / TEMPLATE_NATIVE_W
     sy = SHORTS_OUTPUT_H / TEMPLATE_NATIVE_H
@@ -198,7 +211,7 @@ def _apply_shorts_template(raw_path: str, final_path: str) -> bool:
 
     cmd = [
         "ffmpeg", "-y",
-        "-i", TEMPLATE_PATH,
+        "-i", template_path,
         "-i", raw_path,
         "-filter_complex",
         f"[0:v]scale={SHORTS_OUTPUT_W}:{SHORTS_OUTPUT_H}[bg];"
