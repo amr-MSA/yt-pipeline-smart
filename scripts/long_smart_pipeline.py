@@ -214,12 +214,17 @@ def _apply_shorts_template(raw_path: str, final_path: str) -> bool:
         "-i", template_path,
         "-i", raw_path,
         "-filter_complex",
-        f"[0:v]scale={SHORTS_OUTPUT_W}:{SHORTS_OUTPUT_H}[bg];"
-        f"[1:v]scale={box_w}:{box_h}:force_original_aspect_ratio=increase,"
-        f"crop={box_w}:{box_h}[vid];"
-        f"[bg][vid]overlay={box_x}:{box_y}:format=auto",
+        f"[0:v]scale={SHORTS_OUTPUT_W}:{SHORTS_OUTPUT_H}[frame];"
+        f"[1:v]split=2[srcbg][srcfg];"
+        f"[srcbg]scale={box_w}:{box_h}:force_original_aspect_ratio=increase,"
+        f"crop={box_w}:{box_h},boxblur=18:8[boxbg];"
+        f"[srcfg]scale={box_w}:{box_h}:force_original_aspect_ratio=decrease,"
+        f"pad={box_w}:{box_h}:(ow-iw)/2:(oh-ih)/2:color=black[boxfg];"
+        f"[boxbg][boxfg]overlay=0:0[box];"
+        f"[frame][box]overlay={box_x}:{box_y}:format=auto,format=yuv420p[v]",
+        "-map", "[v]", "-map", "1:a?",
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
-        "-c:a", "copy", "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-b:a", "192k", "-pix_fmt", "yuv420p",
         "-movflags", "+faststart",
         final_path,
     ]
