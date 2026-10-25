@@ -1,6 +1,6 @@
 """
 الطبقة الثانية من خط long-smart: إرسال الترانسكريبت إلى Gemini API
-واستخراج 8 مقاطع مقترحة بصيغة JSON.
+واستخراج مقاطع مقترحة بصيغة JSON.
 
 يُستخدم REST API مباشرة (بدون SDK إضافي) لتفادي زيادة اعتماديات المشروع.
 """
@@ -17,47 +17,55 @@ GEMINI_URL = (
 )
 
 REQUIRED_CLIPS = 8
+# حدود النوعين (بالثواني). المقطع الذي مدته أقل من 180 ثانية = shorts، وما يساويها أو يزيد = long.
+SHORTS_MIN_SECONDS = 20
 SHORTS_MAX_SECONDS = 180
-MAX_CLIP_SECONDS = 900  # ربع ساعة كحد أقصى لأي مقطع
+LONG_MIN_SECONDS = 180
+LONG_MAX_SECONDS = 900  # ربع ساعة كحد أقصى لأي مقطع
+# هامش صغير قبل بداية الجملة وبعد نهايتها حتى لا يُقطع الكلام.
+BOUNDARY_MARGIN_SECONDS = 0.3
+SNAP_TOLERANCE_SECONDS = 1.5
 
 SYSTEM_INSTRUCTIONS = """\
-أنت مساعد متخصص في تحليل ترانسكريبت فيديوهات يوتيوب واقتراح أفضل المقاطع
-لإعادة نشرها كفيديوهات (long) أو كشورتس (shorts).
+أنت محرر متخصص في اقتراح مقاطع من ترانسكريبت فيديو يوتيوب لإعادة نشرها.
+يصلك الترانسكريبت كأسطر بالشكل: [بداية-نهاية] النص، والأرقام بالثواني.
 
-سيصلك الترانسكريبت كقائمة أجزاء نصية، كل جزء له وقت بداية ونهاية بالثواني.
+نوعان من المقاطع، ولكل نوع قواعده:
+1) shorts: مدة المقطع بين 20 و180 ثانية، لا أقل ولا أكثر. فكرة أو قصة أو معلومة واحدة
+   لها بداية ونهاية واضحتان.
+2) long: مدة المقطع بين 180 و900 ثانية (ثلاث دقائق إلى ربع ساعة كحد أقصى). موضوع
+   متصل له مقدمة وسياق وخلاصة. أي مقطع تتجاوز مدته 900 ثانية مرفوض.
 
-مطلوب منك إرجاع 8 مقاطع مقترحة على الأقل إن وُجدت موضوعات مكتملة كافية في
-الترانسكريبت، بصيغة JSON فقط ولا شيء غيره
-(بدون أي نص تمهيدي، بدون Markdown، بدون ```), على الشكل التالي تمامًا:
+قواعد الموضوع المكتمل (صارمة):
+- لا تقترح مقطعًا إلا إذا كان موضوعًا مكتملًا ببداية ونهاية واضحتين.
+- المقطع يبدأ بجملة تقدم الفكرة، ولا يبدأ من منتصف كلام، وينتهي بعد اكتمال الفكرة وخلاصتها مباشرة.
+- إن كان الموضوع يعتمد على سياق سابق لا يظهر في المقطع، أو ينقطع قبل خلاصته، فارفضه.
+- لا تقترح مقطعًا يكون مضمونه تحية أو كلامًا عامًا أو إعلانًا أو تنبيهًا أو فاصلًا.
 
+قواعد التوقيت (صارمة):
+- أعطِ start وend بالثواني بدقة من أرقام الترانسكريبت المعطى فقط. لا تخترع أرقامًا ولا
+  تقدّر توقيتات غير موجودة في النص.
+- يجب أن يبدأ المقطع عند بداية جملة كاملة وينتهي عند نهاية جملة كاملة.
+- لا تتداخل المقاطع مع بعضها بأي شكل، ولا تكرر نفس النطاق الزمني.
+- end أكبر من start دائمًا، وتلتزم مدة كل مقطع بحدود نوعه.
+
+الكمية والترتيب:
+- أعد 8 مقاطع على الأقل إن وُجدت موضوعات مكتملة كافية تحقق كل القواعد أعلاه.
+- إن لم توجد، أعد المتاح فقط، ولا تخترع مقاطع لتكملة العدد.
+- رتّب المقاطع حسب قوة الموضوع وقابليته للمشاهدة.
+
+صيغة الإخراج: JSON فقط، دون أي نص تمهيدي أو Markdown أو أسوار ```، بهذا الشكل تمامًا:
 {
   "clips": [
     {
-      "type": "long" أو "shorts",
+      "type": "shorts" أو "long",
       "start": رقم بالثواني,
       "end": رقم بالثواني,
       "title": "عنوان جذاب مناسب ليوتيوب",
-      "description": "وصف مناسب للفيديو"
+      "description": "وصف مختصر للمقطع"
     }
   ]
 }
-
-قواعد مهمة:
-- عدد العناصر في "clips": 8 على الأقل إن أمكن، ولا تخترع مقاطع لتكملة العدد.
-  إن لم يكن في النص ما يكفي من موضوعات مكتملة، أعد المتاح فقط.
-- أي مقطع تقل مدته عن 180 ثانية يُعامل تلقائيًا بوصفه "shorts".
-- المقاطع التي مدتها 180 ثانية أو أكثر تُعامل بوصفها "long".
-- مدة أي مقطع لا تتجاوز 900 ثانية (ربع ساعة). المقطع الطويل مقبول إذا كان موضوعًا
-  مكتملًا له بداية وسياق وخلاصة، حتى لو بلغت مدته ربع ساعة.
-- اختر لحظات ذات قيمة عالية: نقاط تشويق، معلومة مفاجئة، لحظة عاطفية، أو خلاصة قوية.
-- اختر موضوعًا كاملًا ومترابطًا له بداية وسياق وخلاصة قدر الإمكان، ولا تبدأ
-  المقطع من منتصف فكرة ولا تنهيه قبل اكتمالها.
-- رتّب الاختيارات حسب قوة الموضوع وقابليته للمشاهدة، وليس لتغطية أجزاء عشوائية.
-- لا تحاول توزيع الأنواع بالتساوي؛ اختر نوع كل مقطع حسب طبيعة الفكرة والزمن المتاح.
-- لا تهدر الخانات على مقدمات عامة أو مقاطع ضعيفة أو متشابهة؛ كل مقطع يجب أن يقدم
-  قيمة مستقلة ومثيرة للمشاهد.
-- لا تكرر نفس النطاق الزمني في أكثر من مقطع.
-- التزم فقط بصيغة JSON المذكورة أعلاه دون أي إضافات.
 """
 
 
@@ -81,10 +89,30 @@ def _extract_json(raw_text: str) -> dict:
         return json.loads(match.group(0))
 
 
+def _snap_to_segments(start: float, end: float, segments: list[dict]) -> tuple[float, float]:
+    """يحاذي البداية والنهاية إلى حدود أقرب مقطع نصي من الترانسكريبت، مع هامش صغير.
+
+    البداية تُحاذى إلى أقرب بداية نص ضمن حد التسامح، والنهاية إلى أقرب نهاية نص ضمن
+    حد التسامح، فلا يُقطع الكلام في المنتصف. وإن لم يوجد حد قريب يُبقى التوقيت كما هو.
+    """
+    if not segments:
+        return start, end
+    starts = [float(s["start"]) for s in segments]
+    ends = [float(s["end"]) for s in segments]
+    near_start = [t for t in starts if abs(t - start) <= SNAP_TOLERANCE_SECONDS]
+    snapped_start = min(near_start, key=lambda t: abs(t - start)) if near_start else start
+    near_end = [t for t in ends if abs(t - end) <= SNAP_TOLERANCE_SECONDS]
+    snapped_end = min(near_end, key=lambda t: abs(t - end)) if near_end else end
+    return (
+        max(0.0, snapped_start - BOUNDARY_MARGIN_SECONDS),
+        snapped_end + BOUNDARY_MARGIN_SECONDS,
+    )
+
+
 def suggest_clips(api_key: str, video_title: str, segments: list[dict]) -> list[dict]:
     """
-    يرسل الترانسكريبت لجيمناي ويرجع قائمة من 8 قواميس:
-    [{"type": "long"|"shorts", "start": float, "end": float,
+    يرسل الترانسكريبت لجيمناي ويرجع قائمة من 8 قواميس أو أقل إن لم تتوفر موضوعات مكتملة:
+    [{"type": "shorts"|"long", "start": float, "end": float,
       "title": str, "description": str}, ...]
     """
     transcript_text = _build_transcript_text(segments)
@@ -92,10 +120,12 @@ def suggest_clips(api_key: str, video_title: str, segments: list[dict]) -> list[
     prompt = (
         f"عنوان الفيديو الأصلي: {video_title}\n\n"
         f"الترانسكريبت:\n{transcript_text}\n\n"
-        "أعطني الآن ما لا يقل عن 8 مقاطع مقترحة إن أمكن، وإلا فأعد المتاح فقط، "
+        "أعطني ما لا يقل عن 8 مقاطع مقترحة إن أمكن، وإلا فأعد المتاح فقط، "
         "بصيغة JSON فقط كما هو محدد في التعليمات."
     )
 
+    # ملاحظة: لا نرسل temperature أو top_p أو top_k أو candidate_count، ولا thinking_level،
+    # فإعداداتنا تقتصر على نوع الرد JSON وفق توثيق Gemini 3.x.
     body = {
         "system_instruction": {"parts": [{"text": SYSTEM_INSTRUCTIONS}]},
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
@@ -118,35 +148,29 @@ def suggest_clips(api_key: str, video_title: str, segments: list[dict]) -> list[
     clips = parsed.get("clips", [])
 
     if not clips:
-        raise RuntimeError(
-            "جيمناي لم يُرجع أي مقطع صالح — لا يمكن المتابعة."
-        )
+        raise RuntimeError("جيمناي لم يُرجع أي مقطع — لا يمكن المتابعة.")
     if len(clips) < REQUIRED_CLIPS:
         print(f"ℹ️ جيمناي أرجع {len(clips)} مقطعًا فقط (أقل من {REQUIRED_CLIPS})، سيُحفظ المتاح.")
 
-    # نأخذ أول 8 بالضبط (لو رجع أكثر بالخطأ)
-    # إن أعاد Gemini أكثر من 8 مقاطع نُبقيها كلها، ويقسّمها المستدعي
-    # إلى ملفات Queue كل ملف فيه 8 مقاطع كحد أقصى.
-
-    # فحص أساسي لصحة كل عنصر
     validated = []
     for c in clips:
         start = float(c.get("start", 0))
-        end = float(c.get("end", start + 30))
+        end = float(c.get("end", start + SHORTS_MIN_SECONDS))
         if end <= start:
-            end = start + 30
-        if end - start > MAX_CLIP_SECONDS:
-            end = start + MAX_CLIP_SECONDS
-        # التصنيف النهائي يعتمد على المدة لا على اقتراح Gemini لنوع المقطع:
-        # كل مقطع أقل من 3 دقائق يدخل مسار Shorts العمودي، حتى لو أعاده
-        # Gemini بالخطأ على أنه long. والمقطع الذي يبلغ 180 ثانية أو أكثر
-        # يبقى long حتى لو أعاده Gemini على أنه shorts.
-        clip_type = "shorts" if (end - start) < SHORTS_MAX_SECONDS else "long"
+            print(f"⚠️ مقطع مرفوض: النهاية ليست بعد البداية ({start}-{end}).")
+            continue
+        start, end = _snap_to_segments(start, end, segments)
+        duration = end - start
+        if duration < SHORTS_MIN_SECONDS or duration > LONG_MAX_SECONDS:
+            print(f"⚠️ مقطع مرفوض: مدته {duration:.1f} ثانية خارج الحدود المسموحة.")
+            continue
+        # التصنيف يعتمد على المدة بعد المحاذاة لا على اقتراح Gemini للنوع.
+        clip_type = "shorts" if duration < LONG_MIN_SECONDS else "long"
         validated.append(
             {
                 "type": clip_type,
-                "start": start,
-                "end": end,
+                "start": round(start, 2),
+                "end": round(end, 2),
                 "title": (c.get("title") or "").strip() or "بدون عنوان",
                 "description": (c.get("description") or "").strip(),
             }
