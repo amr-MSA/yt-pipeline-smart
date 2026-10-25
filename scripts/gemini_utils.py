@@ -17,6 +17,7 @@ GEMINI_URL = (
 )
 
 REQUIRED_CLIPS = 8
+SHORTS_MAX_SECONDS = 180
 
 SYSTEM_INSTRUCTIONS = """\
 أنت مساعد متخصص في تحليل ترانسكريبت فيديوهات يوتيوب واقتراح أفضل المقاطع
@@ -41,8 +42,8 @@ SYSTEM_INSTRUCTIONS = """\
 
 قواعد مهمة:
 - عدد العناصر في "clips" يجب أن يكون 8 بالضبط.
-- مقاطع "shorts" يجب ألا تتجاوز مدتها 60 ثانية (end - start <= 60).
-- مقاطع "long" يمكن أن تكون أطول (بضع دقائق) وتغطي فكرة كاملة ومترابطة.
+- أي مقطع تقل مدته عن 180 ثانية يُعامل تلقائيًا بوصفه "shorts".
+- المقاطع التي مدتها 180 ثانية أو أكثر تُعامل بوصفها "long".
 - اختر لحظات ذات قيمة عالية: نقاط تشويق، معلومة مفاجئة، لحظة عاطفية، أو خلاصة قوية.
 - اختر موضوعًا كاملًا ومترابطًا له بداية وسياق وخلاصة قدر الإمكان، ولا تبدأ
   المقطع من منتصف فكرة ولا تنهيه قبل اكتمالها.
@@ -121,15 +122,15 @@ def suggest_clips(api_key: str, video_title: str, segments: list[dict]) -> list[
     # فحص أساسي لصحة كل عنصر
     validated = []
     for c in clips:
-        clip_type = c.get("type", "").strip().lower()
-        if clip_type not in ("long", "shorts"):
-            clip_type = "shorts"
         start = float(c.get("start", 0))
         end = float(c.get("end", start + 30))
         if end <= start:
             end = start + 30
-        if clip_type == "shorts" and (end - start) > 60:
-            end = start + 60
+        # التصنيف النهائي يعتمد على المدة لا على اقتراح Gemini لنوع المقطع:
+        # كل مقطع أقل من 3 دقائق يدخل مسار Shorts العمودي، حتى لو أعاده
+        # Gemini بالخطأ على أنه long. والمقطع الذي يبلغ 180 ثانية أو أكثر
+        # يبقى long حتى لو أعاده Gemini على أنه shorts.
+        clip_type = "shorts" if (end - start) < SHORTS_MAX_SECONDS else "long"
         validated.append(
             {
                 "type": clip_type,
