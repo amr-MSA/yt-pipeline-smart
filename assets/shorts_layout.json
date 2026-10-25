@@ -1,0 +1,7 @@
+{
+  "output": {"width": 864, "height": 1536},
+  "main_video": {"x": 32, "y": 430, "width": 800, "height": 450},
+  "template_native": {"width": 864, "height": 1536},
+  "background": {"blur_sigma": 25, "brightness": -0.18, "saturation": 0.78},
+  "video": {"codec": "libx264", "preset": "veryfast", "crf": 21, "audio_codec": "aac", "audio_bitrate": "192k"}
+}

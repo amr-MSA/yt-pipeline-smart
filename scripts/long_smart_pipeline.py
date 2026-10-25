@@ -22,10 +22,7 @@
     - العنوان والوصف النهائيان = عنوان/وصف جيمناي + توقيع ثابت من
       assets/fixed_title.txt و assets/fixed_description.txt.
 """
-import glob
 import os
-import random
-import subprocess
 import sys
 import traceback
 
@@ -40,6 +37,7 @@ from telegram_utils import send_message
 from transcript_utils import fetch_transcript, split_segments
 from youtube_auth import get_youtube_client
 from youtube_dedupe import append_request_marker, recent_request_markers, request_marker
+from video_compositor import compose_vertical
 
 PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATE_DIR = os.path.join(PROJECT_DIR, "state")
@@ -48,12 +46,6 @@ WORK_DIR = os.path.join(PROJECT_DIR, "work_long_smart")
 DAILY_LIMIT = 8  # حد نشر يومي منفصل خاص بخط long-smart فقط
 TRANSCRIPT_CHUNK_CHARS = 45000
 
-TEMPLATE_PATH = os.path.join(PROJECT_DIR, "assets", "template.png")
-TEMPLATE_GLOB = os.path.join(PROJECT_DIR, "assets", "templates", "shorts", "*.png")
-TEMPLATE_NATIVE_W, TEMPLATE_NATIVE_H = 720, 1280  # أبعاد assets/template.png
-TEMPLATE_BOX_X, TEMPLATE_BOX_Y = 48, 202  # بداية فتحة الفيديو داخل الإطار
-TEMPLATE_BOX_W, TEMPLATE_BOX_H = 624, 870  # أبعاد الفتحة الداخلية
-SHORTS_OUTPUT_W, SHORTS_OUTPUT_H = 1080, 1920
 
 
 # ---------------------------------------------------------------------------
@@ -187,51 +179,8 @@ def _download_clip_range(url: str, start: float, end: float, out_path: str, cook
             ydl.extract_info(url, download=True)
 
 
-def _choose_shorts_template() -> str | None:
-    candidates = sorted(glob.glob(TEMPLATE_GLOB))
-    if os.path.exists(TEMPLATE_PATH):
-        candidates.append(TEMPLATE_PATH)
-    candidates = sorted(set(candidates))
-    return random.choice(candidates) if candidates else None
-
-
 def _apply_shorts_template(raw_path: str, final_path: str) -> bool:
-    template_path = _choose_shorts_template()
-    if not template_path:
-        print("⚠️ لا يوجد قالب شورتس — سيُرفع المقطع بدون قالب.")
-        return False
-    print(f"[LONG-SMART][TEMPLATE] selected={os.path.basename(template_path)}", flush=True)
-
-    sx = SHORTS_OUTPUT_W / TEMPLATE_NATIVE_W
-    sy = SHORTS_OUTPUT_H / TEMPLATE_NATIVE_H
-    box_x = int(TEMPLATE_BOX_X * sx)
-    box_y = int(TEMPLATE_BOX_Y * sy)
-    box_w = int(TEMPLATE_BOX_W * sx)
-    box_h = int(TEMPLATE_BOX_H * sy)
-
-    cmd = [
-        "ffmpeg", "-y",
-        "-i", template_path,
-        "-i", raw_path,
-        "-filter_complex",
-        f"[0:v]scale={SHORTS_OUTPUT_W}:{SHORTS_OUTPUT_H}[frame];"
-        f"[1:v]split=2[srcbg][srcfg];"
-        f"[srcbg]scale={box_w}:{box_h}:force_original_aspect_ratio=increase,"
-        f"crop={box_w}:{box_h},boxblur=18:8[boxbg];"
-        f"[srcfg]scale={box_w}:{box_h}:force_original_aspect_ratio=decrease,"
-        f"pad={box_w}:{box_h}:(ow-iw)/2:(oh-ih)/2:color=black[boxfg];"
-        f"[boxbg][boxfg]overlay=0:0[box];"
-        f"[frame][box]overlay={box_x}:{box_y}:format=auto,format=yuv420p[v]",
-        "-map", "[v]", "-map", "1:a?",
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
-        "-c:a", "aac", "-b:a", "192k", "-pix_fmt", "yuv420p",
-        "-movflags", "+faststart",
-        final_path,
-    ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        print(f"⚠️ فشل دمج القالب: {result.stderr[-500:]}")
-        return False
+    compose_vertical(raw_path, final_path, label="LONG-SMART")
     return True
 
 
