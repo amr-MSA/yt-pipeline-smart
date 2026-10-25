@@ -11,7 +11,7 @@ import time
 import requests
 
 # أحدث نموذج Flash مستقر ومتاح ضمن الطبقة المجانية وفق توثيق Google.
-GEMINI_MODEL = "gemini-3.8-flash"
+GEMINI_MODEL = "gemini-3.6-flash"
 GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
     "{model}:generateContent?key={api_key}"
