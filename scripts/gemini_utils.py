@@ -90,6 +90,16 @@ def _extract_json(raw_text: str) -> dict:
         return json.loads(match.group(0))
 
 
+def _wait_for_min_interval() -> None:
+    """ينتظر حتى يمر الفاصل الأدنى منذ آخر طلب إلى Gemini."""
+    global _last_request_at
+    if _last_request_at:
+        elapsed = time.monotonic() - _last_request_at
+        if elapsed < GEMINI_MIN_INTERVAL_SECONDS:
+            time.sleep(GEMINI_MIN_INTERVAL_SECONDS - elapsed)
+    _last_request_at = time.monotonic()
+
+
 def _snap_to_segments(start: float, end: float, segments: list[dict]) -> tuple[float, float]:
     """يحاذي البداية والنهاية إلى حدود أقرب مقطع نصي من الترانسكريبت، مع هامش صغير.
 
@@ -136,14 +146,17 @@ def suggest_clips(api_key: str, video_title: str, segments: list[dict]) -> list[
     }
 
     url = GEMINI_URL.format(model=GEMINI_MODEL, api_key=api_key)
-    # أخطاء الخدمة المؤقتة (ضغط أو تحميل زائد) تُعاد محاولتها بتأخير متزايد.
-    for attempt in range(1, 4):
-        resp = requests.post(url, json=body, timeout=120)
+    # 429 حد المعدل، و500 و503 ضغط الخدمة: تُعاد المحاولة بتأخير متزايد حتى 5 مرات.
+    max_attempts = 5
+    for attempt in range(1, max_attempts + 1):
+        _wait_for_min_interval()
+        resp = requests.post(url, json=body, timeout=180)
         if resp.status_code not in (429, 500, 503):
             break
-        if attempt < 3:
-            print(f"⚠️ جيمناي أرجع {resp.status_code} (محاولة {attempt}/3)، إعادة المحاولة بعد {attempt * 30} ثانية.")
-            time.sleep(attempt * 30)
+        if attempt < max_attempts:
+            delay = 60 * attempt
+            print(f"⚠️ جيمناي أرجع {resp.status_code} (محاولة {attempt}/{max_attempts})، إعادة المحاولة بعد {delay} ثانية.")
+            time.sleep(delay)
     resp.raise_for_status()
     data = resp.json()
 
@@ -185,3 +198,6 @@ def suggest_clips(api_key: str, video_title: str, segments: list[dict]) -> list[
         )
 
     return validated
+# فاصل أدنى بين طلبين متتاليين لتفادي حد المعدل في الطبقة المجانية.
+GEMINI_MIN_INTERVAL_SECONDS = 20
+_last_request_at = 0.0
