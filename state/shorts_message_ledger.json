@@ -16,5 +16,12 @@
     "source_url": "https://www.youtube.com/live/_ATxAdOeVDg?si=SuBylaIMifgjwTY2",
     "video_id": "9VK2SP75nUk",
     "video_url": "https://youtu.be/9VK2SP75nUk"
+  },
+  "6828354904:40189192646": {
+    "status": "failed_retryable",
+    "stage": "analysis_failed",
+    "chat_id": 6828354904,
+    "message_id": 40189192646,
+    "source_url": "https://www.youtube.com/live/_ATxAdOeVDg?si=SuBylaIMifgjwTY2"
   }
 }

@@ -1,0 +1,32 @@
+{
+  "video_id": "_ATxAdOeVDg",
+  "queue_id": "058f0cfa860d3531d2dbcce1",
+  "request_key": "6828354904:40189192646",
+  "source_url": "https://www.youtube.com/live/_ATxAdOeVDg?si=SuBylaIMifgjwTY2",
+  "source_title": "هل قبلت الإمارات اعتذار السعودية؟ والسيسي يبتز ابن سلمان بالبرلمان",
+  "source_handle": "Yakathahplus",
+  "chat_id": 6828354904,
+  "part_index": 5,
+  "part_count": 11,
+  "file_index": 1,
+  "clips": [
+    {
+      "type": "shorts",
+      "start": 5934.82,
+      "end": 6018.49,
+      "title": "كيف أدت القرارات المفاجئة إلى خسارة التحالفات في اليمن؟",
+      "description": "تشبيه تبسيطي يوضح تأثير التسرع في اتخاذ القرارات وحظر الحلفاء بشكل فجائي.",
+      "status": "pending",
+      "youtube_url": null
+    },
+    {
+      "type": "shorts",
+      "start": 6017.9,
+      "end": 6100.01,
+      "title": "الاستعانة بالدول المجاورة بعد اشتداد الأزمة اليمنية",
+      "description": "مناقشة محاولات حشد الدعم الخارجي من تركيا وباكستان ومصر بعد التعقد الميداني في اليمن.",
+      "status": "pending",
+      "youtube_url": null
+    }
+  ]
+}
