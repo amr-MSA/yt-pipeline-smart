@@ -1,8 +1,5 @@
 """Telegram -> YouTube Shorts pipeline."""
-import glob
 import os
-import random
-import subprocess
 import sys
 import traceback
 
@@ -26,19 +23,14 @@ from youtube_dedupe import append_request_marker, recent_request_markers, reques
 from source_validation import probe_source_url
 import long_smart_pipeline
 import fixed_meta
+from video_compositor import compose_vertical
 
 PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATE_DIR = os.path.join(PROJECT_DIR, "state")
 DOWNLOAD_DIR = os.path.join(PROJECT_DIR, "downloads_short")
 BOT_NAME = "shorts"
-TEMPLATE_PATH = os.path.join(PROJECT_DIR, "assets", "template.png")
-TEMPLATE_GLOB = os.path.join(PROJECT_DIR, "assets", "templates", "shorts", "*.png")
 CLIP_START = 0
 CLIP_END = 60
-TEMPLATE_NATIVE_W, TEMPLATE_NATIVE_H = 720, 1280  # أبعاد assets/template.png
-TEMPLATE_BOX_X, TEMPLATE_BOX_Y = 48, 202  # بداية فتحة الفيديو داخل الإطار
-TEMPLATE_BOX_W, TEMPLATE_BOX_H = 624, 870  # أبعاد الفتحة الداخلية
-OUTPUT_W, OUTPUT_H = 1080, 1920
 
 
 def download_clip(url: str, out_path: str) -> dict:
@@ -61,42 +53,8 @@ def download_clip(url: str, out_path: str) -> dict:
             return ydl.extract_info(url, download=True)
 
 
-def choose_template_path() -> str | None:
-    """اختر عشوائيًا قالبًا من مجلد الثيمات مع fallback للقالب القديم."""
-    candidates = sorted(glob.glob(TEMPLATE_GLOB))
-    if os.path.exists(TEMPLATE_PATH):
-        candidates.append(TEMPLATE_PATH)
-    candidates = sorted(set(candidates))
-    return random.choice(candidates) if candidates else None
-
-
 def apply_template(raw_path: str, final_path: str) -> bool:
-    template_path = choose_template_path()
-    if not template_path:
-        print("⚠️ لا يوجد قالب — سيُرفع المقطع بدون قالب.")
-        return False
-    print(f"[SHORTS][TEMPLATE] selected={os.path.basename(template_path)}", flush=True)
-    sx = OUTPUT_W / TEMPLATE_NATIVE_W
-    sy = OUTPUT_H / TEMPLATE_NATIVE_H
-    box_x = int(TEMPLATE_BOX_X * sx)
-    box_y = int(TEMPLATE_BOX_Y * sy)
-    box_w = int(TEMPLATE_BOX_W * sx)
-    box_h = int(TEMPLATE_BOX_H * sy)
-    cmd = [
-        "ffmpeg", "-y", "-i", template_path, "-i", raw_path,
-        "-filter_complex",
-        f"[0:v]scale={OUTPUT_W}:{OUTPUT_H}[bg];"
-        f"[1:v]scale={box_w}:{box_h}:force_original_aspect_ratio=increase,"
-        f"crop={box_w}:{box_h}[vid];"
-        f"[bg][vid]overlay={box_x}:{box_y}:format=auto",
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
-        "-c:a", "copy", "-pix_fmt", "yuv420p", "-movflags", "+faststart",
-        final_path,
-    ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        print(f"⚠️ فشل دمج القالب: {result.stderr[-500:]}")
-        return False
+    compose_vertical(raw_path, final_path, label="SHORTS")
     return True
 
 
@@ -354,8 +312,8 @@ def main():
                 if candidates:
                     actual_raw = os.path.join(DOWNLOAD_DIR, candidates[0])
 
-            merged = apply_template(actual_raw, final_path)
-            upload_file = final_path if merged else actual_raw
+            apply_template(actual_raw, final_path)
+            upload_file = final_path
 
             ledger[key]["stage"] = "uploading"
             save_message_ledger(STATE_DIR, BOT_NAME, ledger)
