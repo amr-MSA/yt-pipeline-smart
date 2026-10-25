@@ -27,6 +27,9 @@ concurrency:
   group: shorts-pipeline
   cancel-in-progress: false
 
+permissions:
+  contents: write
+
 jobs:
   run-shorts-pipeline:
     runs-on: ubuntu-latest

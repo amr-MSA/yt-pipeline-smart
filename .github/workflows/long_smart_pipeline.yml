@@ -11,6 +11,9 @@ concurrency:
   group: long-smart-pipeline
   cancel-in-progress: false
 
+permissions:
+  contents: write
+
 jobs:
   run-long-smart-batch:
     runs-on: ubuntu-latest
