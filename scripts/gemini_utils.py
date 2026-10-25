@@ -6,6 +6,7 @@
 """
 import json
 import re
+import time
 
 import requests
 
@@ -135,7 +136,14 @@ def suggest_clips(api_key: str, video_title: str, segments: list[dict]) -> list[
     }
 
     url = GEMINI_URL.format(model=GEMINI_MODEL, api_key=api_key)
-    resp = requests.post(url, json=body, timeout=120)
+    # أخطاء الخدمة المؤقتة (ضغط أو تحميل زائد) تُعاد محاولتها بتأخير متزايد.
+    for attempt in range(1, 4):
+        resp = requests.post(url, json=body, timeout=120)
+        if resp.status_code not in (429, 500, 503):
+            break
+        if attempt < 3:
+            print(f"⚠️ جيمناي أرجع {resp.status_code} (محاولة {attempt}/3)، إعادة المحاولة بعد {attempt * 30} ثانية.")
+            time.sleep(attempt * 30)
     resp.raise_for_status()
     data = resp.json()
 
