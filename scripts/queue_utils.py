@@ -37,6 +37,24 @@ def queue_exists(state_dir: str, queue_id: str) -> bool:
     return os.path.exists(_queue_file(state_dir, queue_id))
 
 
+MAX_CLIPS_PER_FILE = 8
+
+
+def split_into_files(clips: list[dict], size: int = MAX_CLIPS_PER_FILE) -> list[list[dict]]:
+    """يقسّم مقاطع Gemini إلى ملفات Queue، كل ملف فيه `size` مقاطع كحد أقصى."""
+    if size <= 0:
+        raise ValueError("حجم الملف يجب أن يكون أكبر من صفر")
+    return [clips[i:i + size] for i in range(0, len(clips), size)]
+
+
+def batch_clip_count(state_dir: str, queue_id: str) -> int:
+    """عدد المقاطع في ملف Queue محفوظ، أو صفر إن لم يوجد."""
+    try:
+        return len(_load_batch(_queue_file(state_dir, queue_id)).get("clips", []))
+    except (OSError, ValueError):
+        return 0
+
+
 def save_new_batch(
     state_dir: str,
     queue_id: str,
@@ -49,8 +67,9 @@ def save_new_batch(
     source_handle: str = "",
     part_index: int = 0,
     part_count: int = 1,
+    file_index: int = 0,
 ) -> None:
-    """يحفظ دفعة من 8 مقاطع مرتبطة برسالة Telegram وجزء ترانسكريبت محدد."""
+    """يحفظ ملف Queue (حتى 8 مقاطع) مرتبطًا برسالة Telegram وجزء ترانسكريبت محدد."""
     data = {
         "video_id": video_id,
         "queue_id": queue_id,
@@ -61,6 +80,7 @@ def save_new_batch(
         "chat_id": chat_id,
         "part_index": part_index,
         "part_count": part_count,
+        "file_index": file_index,
         "clips": [
             {
                 **clip,
@@ -103,6 +123,7 @@ def list_active_batches(state_dir: str) -> list[dict]:
         key=lambda item: (
             item.get("request_key", ""),
             int(item.get("part_index", 0)),
+            int(item.get("file_index", 0)),
             item.get("queue_id", ""),
         ),
     )

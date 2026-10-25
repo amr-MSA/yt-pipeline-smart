@@ -117,7 +117,8 @@ def suggest_clips(api_key: str, video_title: str, segments: list[dict]) -> list[
         )
 
     # نأخذ أول 8 بالضبط (لو رجع أكثر بالخطأ)
-    clips = clips[:REQUIRED_CLIPS]
+    # إن أعاد Gemini أكثر من 8 مقاطع نُبقيها كلها، ويقسّمها المستدعي
+    # إلى ملفات Queue كل ملف فيه 8 مقاطع كحد أقصى.
 
     # فحص أساسي لصحة كل عنصر
     validated = []

@@ -94,33 +94,54 @@ def handle_new_long_commands(bot_token: str, long_commands: list[dict]) -> dict[
                 transcript["segments"], max_chars=TRANSCRIPT_CHUNK_CHARS
             )
             total_clips = 0
+            total_clips = 0
+            total_files = 0
+
+            def _file_queue_id(part_index: int, file_index: int) -> str:
+                return queue_utils.queue_id_for_request(
+                    f"{key}:part:{part_index}:file:{file_index}"
+                )
+
+            # كل جزء ترانسكريبت قد يعطي أكثر من 8 مقاطع، فنقسمها إلى ملفات Queue
+            # كل ملف فيه 8 مقاطع كحد أقصى. نكتب الملف الأول آخرًا، فوجوده يعني أن
+            # الجزء كله اكتمل، فلا يُعاد استدعاء Gemini لجزء محفوظ جزئيًا.
             for part_index, chunk in enumerate(transcript_chunks):
-                part_queue_id = queue_utils.queue_id_for_request(f"{key}:part:{part_index}")
-                if queue_utils.queue_exists(STATE_DIR, part_queue_id):
+                if queue_utils.queue_exists(STATE_DIR, _file_queue_id(part_index, 0)):
                     print(f"⏭️ الجزء {part_index + 1} محفوظ مسبقًا، لن يعاد تحليله.")
-                    total_clips += 8
+                    file_index = 0
+                    while queue_utils.queue_exists(STATE_DIR, _file_queue_id(part_index, file_index)):
+                        total_clips += queue_utils.batch_clip_count(
+                            STATE_DIR, _file_queue_id(part_index, file_index)
+                        )
+                        total_files += 1
+                        file_index += 1
                     continue
                 clips = suggest_clips(gemini_api_key, transcript["title"], chunk)
+                groups = queue_utils.split_into_files(clips)
                 print(
                     f"✅ جيمناي اقترح {len(clips)} مقطعًا للجزء "
-                    f"{part_index + 1}/{len(transcript_chunks)}."
+                    f"{part_index + 1}/{len(transcript_chunks)}، في {len(groups)} ملف(ات) Queue."
                 )
-                queue_utils.save_new_batch(
-                    state_dir=STATE_DIR,
-                    queue_id=part_queue_id,
-                    request_key=key,
-                    video_id=video_id,
-                    source_url=url,
-                    source_title=transcript["title"],
-                    source_handle=source_handle,
-                    chat_id=chat_id,
-                    clips=clips,
-                    part_index=part_index,
-                    part_count=len(transcript_chunks),
-                )
+                for file_index in reversed(range(len(groups))):
+                    queue_utils.save_new_batch(
+                        state_dir=STATE_DIR,
+                        queue_id=_file_queue_id(part_index, file_index),
+                        request_key=key,
+                        video_id=video_id,
+                        source_url=url,
+                        source_title=transcript["title"],
+                        source_handle=source_handle,
+                        chat_id=chat_id,
+                        clips=groups[file_index],
+                        part_index=part_index,
+                        part_count=len(transcript_chunks),
+                        file_index=file_index,
+                    )
                 total_clips += len(clips)
+                total_files += len(groups)
+
             expected_queue_ids = [
-                queue_utils.queue_id_for_request(f"{key}:part:{part_index}")
+                _file_queue_id(part_index, 0)
                 for part_index in range(len(transcript_chunks))
             ]
             if not transcript_chunks or total_clips <= 0 or not all(
@@ -137,7 +158,8 @@ def handle_new_long_commands(bot_token: str, long_commands: list[dict]) -> dict[
                 f"🆔 رسالة الطلب: {cmd['message_id']}\n"
                 f"🎬 المصدر: {url}\n"
                 f"📝 العنوان: {transcript['title']}\n"
-                f"تم حفظ {total_clips} مقطعًا مقترحًا في {len(transcript_chunks)} ملف/ملفات Queue.\n\n"
+                f"تم حفظ {total_clips} مقطعًا مقترحًا في {total_files} ملف/ملفات Queue "
+                f"(كل ملف حتى {queue_utils.MAX_CLIPS_PER_FILE} مقاطع).\n\n"
                 f"📌 سيُنشر ملف Queue واحد كاملًا كل يوم بالترتيب، حتى تنتهي كل المقاطع.\n"
                 f"ℹ️ إرسال نفس الرابط في رسالة جديدة سيُعامل كطلب جديد مستقل.",
             )
