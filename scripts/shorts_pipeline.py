@@ -28,6 +28,7 @@ from youtube_dedupe import append_request_marker, recent_request_markers, reques
 from source_validation import probe_source_url
 import long_smart_pipeline
 import fixed_meta
+from short_title import select_short_title
 from video_compositor import compose_vertical
 
 PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -342,7 +343,7 @@ def main():
                 continue
 
             info = download_clip(url, raw_path)
-            title = info.get("title", "شورت جديد")
+            title = select_short_title(info, url, item)
             desc = fixed_meta.build_final_description(
                 info.get("description", "") or "",
                 source_handle=fixed_meta.source_handle_from_info(info),
