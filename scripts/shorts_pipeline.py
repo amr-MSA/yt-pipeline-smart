@@ -8,10 +8,14 @@ from googleapiclient.http import MediaFileUpload
 from cookie_utils import temporary_cookie_file
 
 from telegram_utils import (
+    PUBLISHED_URL_TTL_SECONDS,
+    canonicalize_url,
     fetch_all_new_messages,
+    load_published_urls,
     load_message_ledger,
     merge_latest_state,
     message_key,
+    record_published_url,
     save_message_ledger,
     send_batch_summary,
     send_message,
@@ -255,6 +259,12 @@ def main():
     print("[SHORTS][DEDUPE] START: فحص آخر 10 فيديوهات القناة (Long + Shorts)", flush=True)
     recent_markers = recent_request_markers(youtube)
     print(f"[SHORTS][DEDUPE] OK: تم العثور على {len(recent_markers)} معرف طلب", flush=True)
+    published_urls = load_published_urls(STATE_DIR, BOT_NAME)
+    print(
+        f"[SHORTS][DEDUPE] OK: الروابط المنشورة النشطة خلال "
+        f"{PUBLISHED_URL_TTL_SECONDS // 3600} ساعة={len(published_urls)}",
+        flush=True,
+    )
 
     for idx, item in enumerate(links, 1):
         url = item["url"]
@@ -264,6 +274,7 @@ def main():
         marker = request_marker("shorts", key)
         raw_path = os.path.join(DOWNLOAD_DIR, f"raw_{idx}.mp4")
         final_path = os.path.join(DOWNLOAD_DIR, f"final_{idx}.mp4")
+        canonical_url = item.get("canonical_url") or canonicalize_url(url)
 
         ledger[key] = {
             "status": "processing",
@@ -275,6 +286,40 @@ def main():
         save_message_ledger(STATE_DIR, BOT_NAME, ledger)
 
         try:
+            # حماية إضافية للرابط نفسه عند وصوله من رسالة Telegram ثانية أو
+            # بصيغة YouTube مختلفة؛ marker وحده يحمي message_id فقط.
+            published_record = published_urls.get(canonical_url)
+            if not published_record:
+                for previous in ledger.values():
+                    if (
+                        previous.get("status") == "succeeded"
+                        and canonicalize_url(previous.get("source_url", "")) == canonical_url
+                    ):
+                        published_record = previous
+                        break
+            if published_record:
+                previous_video_url = published_record.get("video_url")
+                if not previous_video_url and published_record.get("video_id"):
+                    previous_video_url = f"https://youtu.be/{published_record['video_id']}"
+                ledger[key] = {
+                    "status": "succeeded",
+                    "stage": "uploaded",
+                    "chat_id": chat_id,
+                    "message_id": message_id,
+                    "source_url": url,
+                    "video_id": published_record.get("video_id"),
+                    "video_url": previous_video_url,
+                    "dedupe_source": "published_url_48h",
+                }
+                save_message_ledger(STATE_DIR, BOT_NAME, ledger)
+                print(
+                    f"⏭️ تم تجاوز مصدر منشور خلال 48 ساعة: "
+                    f"{previous_video_url or canonical_url}"
+                )
+                if delete_message(bot_token, chat_id, message_id):
+                    print(f"🗑️ حُذفت رسالة الرابط المكرر: {message_id}")
+                continue
+
             youtube_existing_id = recent_markers.get(marker)
             if youtube_existing_id:
                 video_url = f"https://youtu.be/{youtube_existing_id}"
@@ -335,6 +380,8 @@ def main():
                 "video_url": video_url,
             }
             save_message_ledger(STATE_DIR, BOT_NAME, ledger)
+            record_published_url(STATE_DIR, BOT_NAME, url, video_id)
+            published_urls = load_published_urls(STATE_DIR, BOT_NAME)
 
             report = (
                 f"✅ <b>تم نشر الطلب بنجاح</b> ({idx}/{total})\n\n"
@@ -344,7 +391,7 @@ def main():
                 f"⏱️ <b>المقطع:</b> {CLIP_END - CLIP_START} ثانية\n"
                 f"📺 <b>الفيديو:</b> {video_url}\n\n"
                 "🗑️ تم حذف رسالة الطلب بعد نجاح النشر.\n"
-                "ℹ️ إرسال نفس الرابط في رسالة جديدة = طلب جديد مستقل."
+                "ℹ️ لن يُعاد نشر نفس الرابط خلال 48 ساعة."
             )
             send_message(bot_token, chat_id, report)
 
