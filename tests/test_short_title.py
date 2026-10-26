@@ -3,7 +3,7 @@ import sys
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
-from short_title import select_short_title
+from short_title import combine_original_text, select_short_title
 
 
 class ShortTitleTests(unittest.TestCase):
@@ -17,39 +17,56 @@ class ShortTitleTests(unittest.TestCase):
             with self.subTest(url=url):
                 self.assertEqual(select_short_title(info, url), info["title"])
 
-    def test_uses_fulltitle_if_title_is_blank(self):
+    def test_uses_fulltitle_when_title_is_blank_or_generated(self):
         self.assertEqual(
             select_short_title(
-                {"title": "  ", "fulltitle": "Original full title"},
+                {"title": "Video by el_mulhem", "fulltitle": "Original full title"},
                 "https://www.instagram.com/reel/abc123/",
             ),
             "Original full title",
         )
 
-    def test_uses_fallback_when_social_title_is_missing_or_placeholder(self):
+    def test_rejects_generated_generic_url_and_id_titles(self):
         cases = [
-            ({}, "https://www.instagram.com/reel/abc123/"),
-            ({"title": "  "}, "https://www.tiktok.com/@user/video/123"),
-            ({"id": "abc123", "title": "abc123"}, "https://www.facebook.com/watch/abc123"),
-            ({"title": "Facebook video"}, "https://fb.watch/abc123/"),
-            ({"extractor_key": "TikTok", "title": "video"}, "https://example.com/watch/123"),
+            "Video by el_mulhem", "Reel by account", "Photo by user", "Facebook video",
+            "video", "https://example.com/watch/123", "abc123456",
         ]
-        for info, url in cases:
-            with self.subTest(info=info, url=url):
-                self.assertEqual(select_short_title(info, url), "مقطع اليوم")
+        for title in cases:
+            with self.subTest(title=title):
+                self.assertEqual(select_short_title({"id": "abc123456", "title": title}, "https://example.com/watch/123"), "مقطع اليوم")
 
-    def test_preserves_existing_default_for_non_social_sources(self):
-        self.assertEqual(select_short_title({}, "https://youtu.be/abc123"), "شورت جديد")
+    def test_universal_fallback_and_no_title_invented_from_description(self):
+        self.assertEqual(select_short_title({"description": "A descriptive sentence"}, "https://youtu.be/abc123"), "مقطع اليوم")
+        self.assertEqual(select_short_title({}, "https://example.com/watch/123"), "مقطع اليوم")
 
-    def test_explicit_inline_title_takes_precedence(self):
+    def test_custom_override_does_not_supersede_original_or_default(self):
+        item = {"title_mode": "custom", "title_override": " عنوان مخصص "}
         self.assertEqual(
             select_short_title(
                 {"title": "Original source title"},
-                "https://www.instagram.com/reel/abc123/",
-                {"title_mode": "custom", "title_override": " عنوان مخصص "},
+                "https://example.com/watch/123", item,
             ),
-            "عنوان مخصص",
+            "Original source title",
         )
+        self.assertEqual(select_short_title({}, "https://example.com/watch/123", item), "مقطع اليوم")
+
+    def test_caps_selected_title_but_preserves_full_original_metadata(self):
+        long_title = "أ" * 130
+        info = {"title": long_title, "description": "first line\nsecond line"}
+        self.assertEqual(len(select_short_title(info, "https://example.com/v")), 100)
+        combined = combine_original_text(info)
+        self.assertIn(long_title, combined)
+        self.assertIn("first line\nsecond line", combined)
+
+    def test_description_combiner_keeps_poor_title_and_deduplicates_contained_text(self):
+        info = {
+            "title": "Video by el_mulhem",
+            "fulltitle": "Video by el_mulhem — fuller title",
+            "description": "Video by el_mulhem — fuller title\noriginal second line",
+        }
+        combined = combine_original_text(info)
+        self.assertEqual(combined, "Video by el_mulhem — fuller title\noriginal second line")
+        self.assertEqual(combined.count("Video by el_mulhem"), 1)
 
 
 if __name__ == "__main__":

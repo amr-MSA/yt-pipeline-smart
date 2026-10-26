@@ -28,7 +28,7 @@ from youtube_dedupe import append_request_marker, recent_request_markers, reques
 from source_validation import probe_source_url
 import long_smart_pipeline
 import fixed_meta
-from short_title import select_short_title
+from short_title import combine_original_text, select_short_title
 from video_compositor import compose_vertical
 
 PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -345,7 +345,7 @@ def main():
             info = download_clip(url, raw_path)
             title = select_short_title(info, url, item)
             desc = fixed_meta.build_final_description(
-                info.get("description", "") or "",
+                combine_original_text(info),
                 source_handle=fixed_meta.source_handle_from_info(info),
                 source_url=url,
             )
@@ -367,7 +367,7 @@ def main():
             save_message_ledger(STATE_DIR, BOT_NAME, ledger)
 
             video_id = upload_video(
-                youtube, upload_file, f"{title} #Shorts", desc
+                youtube, upload_file, title, desc
             )
             recent_markers[marker] = video_id
             video_url = f"https://youtu.be/{video_id}"
