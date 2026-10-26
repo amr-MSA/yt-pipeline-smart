@@ -18,10 +18,28 @@
     "video_url": "https://youtu.be/9VK2SP75nUk"
   },
   "6828354904:40189192646": {
-    "status": "failed_retryable",
-    "stage": "analysis_failed",
+    "status": "upload_unknown",
+    "stage": "uploading",
     "chat_id": 6828354904,
     "message_id": 40189192646,
-    "source_url": "https://www.youtube.com/live/_ATxAdOeVDg?si=SuBylaIMifgjwTY2"
+    "source_url": "https://www.youtube.com/live/_ATxAdOeVDg?si=SuBylaIMifgjwTY2",
+    "error": "<HttpError 400 when requesting None returned \"The user has exceeded the number of videos they may upload.\". Details: \"[{'message': 'The user has exceeded the number of videos they may upload.', 'domain': 'youtube.video', 'reason': 'uploadLimitExceeded'}]\">"
+  },
+  "6828354904:66": {
+    "status": "succeeded",
+    "stage": "uploaded",
+    "chat_id": 6828354904,
+    "message_id": 66,
+    "source_url": "https://youtu.be/E8P8K8SuS4Y?si=Y49RCex0gJO6iivC",
+    "video_id": "4Ll7NXUzAi0",
+    "video_url": "https://youtu.be/4Ll7NXUzAi0"
+  },
+  "6828354904:67": {
+    "status": "upload_unknown",
+    "stage": "uploading",
+    "chat_id": 6828354904,
+    "message_id": 67,
+    "source_url": "https://youtu.be/E8P8K8SuS4Y?si=Y49RCex0gJO6iivC",
+    "error": "<HttpError 400 when requesting None returned \"The user has exceeded the number of videos they may upload.\". Details: \"[{'message': 'The user has exceeded the number of videos they may upload.', 'domain': 'youtube.video', 'reason': 'uploadLimitExceeded'}]\">"
   }
 }
