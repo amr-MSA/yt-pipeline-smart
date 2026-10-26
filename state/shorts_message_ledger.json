@@ -41,5 +41,43 @@
     "message_id": 67,
     "source_url": "https://youtu.be/E8P8K8SuS4Y?si=Y49RCex0gJO6iivC",
     "error": "<HttpError 400 when requesting None returned \"The user has exceeded the number of videos they may upload.\". Details: \"[{'message': 'The user has exceeded the number of videos they may upload.', 'domain': 'youtube.video', 'reason': 'uploadLimitExceeded'}]\">"
+  },
+  "6828354904:87": {
+    "status": "succeeded",
+    "stage": "uploaded",
+    "chat_id": 6828354904,
+    "message_id": 87,
+    "source_url": "https://www.instagram.com/reel/DepGTX5oWsI/?xtok=MXVmcWp3eWZ4ZTFz",
+    "video_id": "UjwSE5Ey_QE",
+    "video_url": "https://youtu.be/UjwSE5Ey_QE"
+  },
+  "6828354904:88": {
+    "status": "succeeded",
+    "stage": "uploaded",
+    "chat_id": 6828354904,
+    "message_id": 88,
+    "source_url": "https://www.instagram.com/reel/De4p46JoFD4/?xtok=dmdlZ2VlNTBjZ3Nr",
+    "video_id": "jMKkJAGXTJc",
+    "video_url": "https://youtu.be/jMKkJAGXTJc"
+  },
+  "6828354904:89": {
+    "status": "succeeded",
+    "stage": "uploaded",
+    "chat_id": 6828354904,
+    "message_id": 89,
+    "source_url": "https://www.instagram.com/reel/De4p46JoFD4/?xtok=dmdlZ2VlNTBjZ3Nr",
+    "video_id": "jMKkJAGXTJc",
+    "video_url": "https://youtu.be/jMKkJAGXTJc",
+    "dedupe_source": "published_url_48h"
+  },
+  "6828354904:90": {
+    "status": "succeeded",
+    "stage": "uploaded",
+    "chat_id": 6828354904,
+    "message_id": 90,
+    "source_url": "https://www.instagram.com/reel/DepGTX5oWsI/?xtok=MXVmcWp3eWZ4ZTFz",
+    "video_id": "UjwSE5Ey_QE",
+    "video_url": "https://youtu.be/UjwSE5Ey_QE",
+    "dedupe_source": "published_url_48h"
   }
 }
