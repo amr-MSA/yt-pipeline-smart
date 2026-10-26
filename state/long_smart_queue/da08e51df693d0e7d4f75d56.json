@@ -16,8 +16,9 @@
       "end": 1161.7,
       "title": "مشروع يقظة للأطفال: غرس العقيدة والوعي في النشء",
       "description": "طرح رؤية لمشروع إعلامي موجه للأطفال يستهدف ترسيخ المفاهيم والقيم الدينية والأخلاقية.",
-      "status": "pending",
-      "youtube_url": null
+      "status": "upload_unknown",
+      "youtube_url": null,
+      "error": "<HttpError 400 when requesting None returned \"The user has exceeded the number of videos they may upload.\". Details: \"[{'message': 'The user has exceeded the number of videos they may upload.', 'domain': 'youtube.video', 'reason': 'uploadLimitExceeded'}]\">"
     },
     {
       "type": "shorts",
