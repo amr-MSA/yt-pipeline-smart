@@ -2,6 +2,7 @@
 import os
 import sys
 import traceback
+import time
 
 import yt_dlp
 from googleapiclient.http import MediaFileUpload
@@ -163,6 +164,7 @@ def main():
             "url": manual_long_url,
             "chat_id": manual_chat_id,
             "message_id": manual_message_id,
+            "date": int(time.time()),
             "text": f"/long {manual_long_url}",
         })
         print(

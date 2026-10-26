@@ -369,7 +369,10 @@ def fetch_all_new_messages(bot_token: str, state_dir: str, bot_name: str) -> tup
     long_commands = []
     smart_inbox = load_smart_long_inbox(state_dir)
 
-    for msg in _iter_messages(updates):
+    for update in updates:
+        msg = update.get("message") or update.get("channel_post")
+        if not msg:
+            continue
         text = msg.get("text") or msg.get("caption") or ""
         if is_pipeline_report(text):
             links = []
@@ -389,6 +392,8 @@ def fetch_all_new_messages(bot_token: str, state_dir: str, bot_name: str) -> tup
                     "url": url,
                     "chat_id": msg["chat"]["id"],
                     "message_id": msg["message_id"],
+                    "date": int(msg.get("date", time.time())),
+                    "update_id": int(update.get("update_id", 0)),
                     "text": text.strip(),
                 }
             )

@@ -13,10 +13,10 @@
     4) لا يُنشر أي شيء فورًا في هذه المرحلة — النشر يتم في المرحلة ب فقط.
 
 المرحلة ب) عند كل تشغيل يومي مجدول (run_daily_batch):
-    - يمر على كل الطوابير النشطة (فيها مقطع pending واحد على الأقل).
-    - يأخذ **مقطعًا واحدًا (أول pending) من كل طابور نشط** وينشره،
-      طالما لم نصل لسقف النشر اليومي المشترك لخط long-smart بالكامل
-      (عداد منفصل تمامًا عن خط اللونق الفوري وخط الشورتس القديم).
+    - يعالج ملف الطابور الأقدم فقط، ويكمل مقاطعه بالترتيب.
+    - الفشل المؤكد ينتظر حتى يوم UTC التالي؛ الفشل المؤكد الثاني يُسقط
+      المقطع بأمان. نتيجة الرفع الملتبسة توقف الملف ولا تُعاد تلقائيًا.
+    - لا يدخل الملف التالي في التشغيل نفسه بعد إكمال الملف الحالي.
     - عند اكتشاف خطأ كوتا من يوتيوب في أي لحظة، يتوقف فورًا عن أي محاولات
       نشر أخرى في هذا التشغيل ويسجّل ذلك.
     - العنوان والوصف النهائيان = عنوان/وصف جيمناي + توقيع ثابت من
@@ -136,6 +136,8 @@ def handle_new_long_commands(bot_token: str, long_commands: list[dict]) -> dict[
                         part_index=part_index,
                         part_count=len(transcript_chunks),
                         file_index=file_index,
+                        created_at=cmd.get("date"),
+                        fifo_order=cmd.get("update_id"),
                     )
                 total_clips += len(clips)
                 total_files += len(groups)
@@ -224,6 +226,28 @@ def _upload(youtube, file_path: str, title: str, description: str) -> str:
     return response["id"]
 
 
+def _safe_failure_label(exception: Exception) -> str:
+    """وصف آمن للفشل لا يتضمن نصًا قد يحتوي رابط المصدر أو بيانات شخصية."""
+    if publish_quota.is_quota_error(exception):
+        return "youtube_quota_error"
+    status = getattr(getattr(exception, "resp", None), "status", None)
+    if status is not None:
+        try:
+            return f"youtube_http_{int(status)}"
+        except (TypeError, ValueError):
+            pass
+    return type(exception).__name__
+
+
+def _is_confirmed_upload_failure(exception: Exception) -> bool:
+    """استجابة HTTP 4xx تعني رفض الطلب؛ أخطاء النقل/5xx تبقى ملتبسة."""
+    status = getattr(getattr(exception, "resp", None), "status", None)
+    try:
+        return 400 <= int(status) < 500
+    except (TypeError, ValueError):
+        return False
+
+
 def run_daily_batch() -> None:
     bot_token = os.environ.get("SHORTS_BOT_TOKEN")
     youtube_token_json = os.environ["YOUTUBE_TOKEN_JSON"]
@@ -281,7 +305,18 @@ def run_daily_batch() -> None:
         chat_id = batch["chat_id"]
         clip_idx = queue_utils.get_next_pending_index(batch)
         if clip_idx is None:
-            continue
+            waiting = next(
+                (i for i, item in enumerate(batch["clips"])
+                 if item.get("status") == "failed_retryable"),
+                None,
+            )
+            if waiting is not None:
+                message = (
+                    f"⏸️ ينتظر المقطع {waiting + 1}/{len(batch['clips'])} موعد المحاولة اليومية التالية "
+                    "بعد فشل مؤكد؛ لم يُحذف ولم تُجرَ محاولة أخرى اليوم."
+                )
+                add_summary(batch["chat_id"], message)
+            break
 
         clip = batch["clips"][clip_idx]
         marker = request_marker("long-smart", f"{queue_id}:{clip_idx}")
@@ -311,16 +346,21 @@ def run_daily_batch() -> None:
                 add_summary(chat_id, f"✅ مؤكد سابقًا: المقطع {done + 1}/{total} — {video_url}")
                 continue
 
-            if queue_utils.get_clip_status(STATE_DIR, queue_id, clip_idx) == "upload_unknown":
+            current_status = queue_utils.get_clip_status(STATE_DIR, queue_id, clip_idx)
+            if current_status in {"upload_unknown", "uploading"}:
+                if current_status == "uploading":
+                    queue_utils.mark_clip_upload_unknown(
+                        STATE_DIR, queue_id, clip_idx, "interrupted_upload"
+                    )
                 message = (
-                    f"⚠️ تعذر تأكيد رفع مقطع {done + 1}/{total} بعد انقطاع الاتصال. "
-                    "لن تتم إعادة رفعه تلقائيًا حمايةً من التكرار؛ راجع آخر فيديوهات القناة."
+                    f"⚠️ تعذر تأكيد رفع المقطع {done + 1}/{total}. "
+                    "أُوقف هذا الملف للحماية من التكرار، ولن يُسقط المقطع أو يُرفع مجددًا تلقائيًا."
                 )
-                add_unpublished(chat_id, f"🆔 الطابور: {queue_id}\n{message}")
+                add_unpublished(chat_id, f"🆔 الطابور: {queue_id} — المقطع: {clip_idx + 1}\n{message}")
                 if bot_token:
                     send_message(bot_token, chat_id, message)
                 add_summary(chat_id, f"⚠️ غير مؤكد: المقطع {done + 1}/{total}")
-                continue
+                break
 
             print(f"⬇️ تحميل المقطع ({clip['start']}-{clip['end']} ثانية)...")
             _download_clip_range(batch["source_url"], clip["start"], clip["end"], raw_path, cookies_env)
@@ -372,45 +412,76 @@ def run_daily_batch() -> None:
             add_summary(chat_id, f"✅ نُشر: المقطع {done + 1}/{total} — {video_url}")
 
         except Exception as e:
-            err = f"{e}"
-            print(f"❌ فشل: {err}")
-            traceback.print_exc()
+            safe_label = _safe_failure_label(e)
+            print(f"❌ تعذر إكمال المقطع ({safe_label}).")
+            current_status = queue_utils.get_clip_status(STATE_DIR, queue_id, clip_idx)
+
+            if current_status == "published":
+                # لا نرجع حالة نشر مؤكدة إلى الفشل حتى لو تعذر تحديث عداد الحصة.
+                print("⚠️ النشر مؤكد؛ تعذر إكمال تحديث الحالة اليومية.")
+                add_summary(chat_id, f"✅ النشر مؤكد للمقطع {done + 1}/{total}.")
+                break
 
             if publish_quota.is_quota_error(e):
                 print("🚫 تم اكتشاف خطأ كوتا يوتيوب — إيقاف كل النشر لهذا اليوم.")
                 publish_quota.record_quota_hit(STATE_DIR)
-                if bot_token:
-                    send_message(
-                        bot_token, chat_id,
-                        "⚠️ تم الوصول لحد نشر يوتيوب اليومي (رصدناه من رسالة الخطأ). "
-                        "سيتم إكمال النشر غدًا تلقائيًا.",
+                result_status = queue_utils.mark_clip_failed(
+                    STATE_DIR, queue_id, clip_idx, failure_type=safe_label
+                )
+                if result_status == "skipped":
+                    message = (
+                        f"⏭️ تم تخطي المقطع {done + 1}/{total} بعد فشلين مؤكدين؛ "
+                        "سيتابع الطابور في التشغيل اليومي التالي."
                     )
-                # خطأ quota معروف يعني أن هذا الطلب لم يُقبل للنشر عادةً؛
-                # أعد المقطع pending عمليًا لليوم التالي، ولا تجعله
-                # upload_unknown الذي قد يوقف الملف بلا داعٍ.
-                queue_utils.mark_clip_failed(STATE_DIR, queue_id, clip_idx, err)
+                else:
+                    message = (
+                        "⚠️ رُصد حد YouTube اليومي. سيتوقف النشر الآن، وستكون للمقطع "
+                        "محاولة واحدة في التشغيل اليومي التالي."
+                    )
                 add_unpublished(
                     chat_id,
-                    f"🆔 الطابور: {queue_id} — المقطع: {clip_idx + 1}\n"
-                    f"🎬 المصدر: {batch['source_url']}\n❌ السبب: {err[:500]}",
+                    f"🆔 الطابور: {queue_id} — المقطع: {clip_idx + 1}\n{message}",
                 )
+                if bot_token:
+                    send_message(bot_token, chat_id, message)
+                add_summary(chat_id, message)
                 break
 
-            if queue_utils.get_clip_status(STATE_DIR, queue_id, clip_idx) == "uploading":
-                queue_utils.mark_clip_upload_unknown(STATE_DIR, queue_id, clip_idx, err)
+            upload_started = current_status in {"uploading", "upload_unknown"}
+            if upload_started and not _is_confirmed_upload_failure(e):
+                queue_utils.mark_clip_upload_unknown(
+                    STATE_DIR, queue_id, clip_idx, safe_label
+                )
+                message = (
+                    f"⚠️ نتيجة رفع المقطع {done + 1}/{total} غير مؤكدة. "
+                    "أُوقف الملف للحماية من التكرار؛ لن يُسقط المقطع أو يُعاد رفعه تلقائيًا."
+                )
+                add_unpublished(chat_id, f"🆔 الطابور: {queue_id} — المقطع: {clip_idx + 1}\n{message}")
+                if bot_token:
+                    send_message(bot_token, chat_id, message)
+                add_summary(chat_id, f"⚠️ غير مؤكد: المقطع {done + 1}/{total}")
+                break
+
+            result_status = queue_utils.mark_clip_failed(
+                STATE_DIR, queue_id, clip_idx, failure_type=safe_label
+            )
+            if result_status == "skipped":
+                message = (
+                    f"⏭️ تم تخطي المقطع {done + 1}/{total} بعد فشلين مؤكدين "
+                    f"({safe_label})؛ سيُتابع الطابور بالمقطع التالي."
+                )
             else:
-                queue_utils.mark_clip_failed(STATE_DIR, queue_id, clip_idx, err)
+                message = (
+                    f"⏸️ فشل نشر المقطع {done + 1}/{total} بشكل مؤكد ({safe_label}). "
+                    "ستكون له محاولة واحدة في التشغيل اليومي التالي."
+                )
             add_unpublished(
                 chat_id,
-                f"🆔 الطابور: {queue_id} — المقطع: {clip_idx + 1}\n"
-                f"🎬 المصدر: {batch['source_url']}\n❌ السبب: {err[:500]}",
+                f"🆔 الطابور: {queue_id} — المقطع: {clip_idx + 1}\n{message}",
             )
             if bot_token:
-                send_message(
-                    bot_token, chat_id,
-                    f"❌ فشل نشر أحد مقاطع \"{batch['source_title']}\":\n{err[:300]}",
-                )
-            add_summary(chat_id, f"❌ فشل: المقطع {done + 1}/{total} — {err[:180]}")
+                send_message(bot_token, chat_id, message)
+            add_summary(chat_id, message)
 
         finally:
             for f in os.listdir(DOWNLOAD_DIR):

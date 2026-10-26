@@ -2,8 +2,7 @@ name: Smart Channel - Long-Smart Publisher
 
 on:
   schedule:
-    # يبدأ بعد long وshort بفاصل 15 دقيقة ضمن الترتيب اليومي — ينشر مقطعًا واحدًا
-    # من كل طابور نشط، ضمن حد يومي منفصل (افتراضيًا 8) خاص بهذا الخط فقط.
+    # يعالج ملف Queue نشطًا واحدًا وفق FIFO، ضمن حد يومي منفصل (افتراضيًا 8).
     - cron: '30 4 * * *'   # 07:30 بتوقيت السعودية (UTC+3)
   workflow_dispatch: {}
 
@@ -21,6 +20,8 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
