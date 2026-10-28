@@ -49,9 +49,9 @@ QUEUE_REPORT_PREFIX = "📋 تقرير ملفات /long"
 QUEUE_REPORT_MAX_CHARS = 3500
 
 
-def _report_value(value: object, max_length: int = 1000) -> str:
+def _report_value(value: object, max_length: int | None = None) -> str:
     text = " ".join(str(value or "").split()) or "—"
-    if len(text) > max_length:
+    if max_length is not None and len(text) > max_length:
         return text[:max_length - 1] + "…"
     return text
 
@@ -66,18 +66,44 @@ def _format_clip_timestamp(value: object) -> str:
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
 
-def _split_report_lines(lines: list[str], max_chars: int) -> list[str]:
+def _telegram_text_length(text: str) -> int:
+    return len(text.encode("utf-16-le")) // 2
+
+
+def _split_text_by_limit(text: str, max_chars: int) -> list[str]:
+    fragments = []
+    current = []
+    current_length = 0
+    for character in text:
+        character_length = 2 if ord(character) > 0xFFFF else 1
+        if current and current_length + character_length > max_chars:
+            fragments.append("".join(current))
+            current = []
+            current_length = 0
+        current.append(character)
+        current_length += character_length
+    if current:
+        fragments.append("".join(current))
+    return fragments or [""]
+
+
+def _split_report_blocks(blocks: list[str], max_chars: int) -> list[str]:
     chunks = []
     current = ""
-    for line in lines:
-        fragments = [line[i:i + max_chars] for i in range(0, len(line), max_chars)] or [""]
-        for fragment in fragments:
-            separator = "\n" if current else ""
-            if len(current) + len(separator) + len(fragment) > max_chars:
+    for block in blocks:
+        if _telegram_text_length(block) > max_chars:
+            if current:
                 chunks.append(current)
-                current = fragment
-            else:
-                current += separator + fragment
+                current = ""
+            chunks.extend(_split_text_by_limit(block, max_chars))
+            continue
+
+        separator = "\n\n" if current else ""
+        if current and _telegram_text_length(current + separator + block) > max_chars:
+            chunks.append(current)
+            current = block
+        else:
+            current += separator + block
     if current:
         chunks.append(current)
     return chunks or [""]
@@ -92,36 +118,41 @@ def _send_queue_manifest_report(
     queue_files: list[tuple[str, dict]],
 ) -> None:
     total_clips = sum(len(batch.get("clips", [])) for _, batch in queue_files)
-    lines = [
-        "✅ اكتملت المعالجة وحُفظت ملفات الطابور؛ لم يبدأ النشر بعد.",
-        f"🆔 رقم رسالة الطلب: {cmd['message_id']}",
-        f"🎬 الرابط: {_report_value(source_url)}",
-        f"📝 عنوان المصدر: {_report_value(source_title)}",
-        f"📦 الإجمالي: {len(queue_files)} ملف/ملفات — {total_clips} مقطعًا",
-        "",
+    blocks = [
+        "\n".join((
+            "✅ جاهز — انتهت المعالجة؛ لم يبدأ النشر.",
+            f"🎬 {_report_value(source_title)}",
+            f"🔗 {_report_value(source_url)}",
+            f"📦 {len(queue_files)} ملفات · {total_clips} مقطعًا | الطلب {cmd['message_id']}",
+        ))
     ]
     for file_number, (filename, batch) in enumerate(queue_files, 1):
         clips = batch.get("clips", [])
         part_number = int(batch.get("part_index", 0)) + 1
         file_index = int(batch.get("file_index", file_number - 1)) + 1
-        lines.append(
-            f"📁 الملف {file_number} (الجزء {part_number}، الملف {file_index}): "
-            f"{filename} — {len(clips)} مقطعًا"
+        statuses = [_report_value(clip.get("status", "pending")) for clip in clips]
+        uniform_status = bool(statuses) and len(set(statuses)) == 1
+        file_status = (
+            f"الحالة: {statuses[0]}" if uniform_status
+            else "حالات متعددة" if statuses
+            else "لا مقاطع"
+        )
+        blocks.append(
+            f"📁 {file_number}/{len(queue_files)} · {filename} · "
+            f"الجزء {part_number}، الملف {file_index} · {len(clips)} مقاطع · {file_status}"
         )
         for clip_index, clip in enumerate(clips, 1):
-            title = _report_value(clip.get("title"), 1000)
+            title = _report_value(clip.get("title"))
             clip_type = _report_value(clip.get("type"), 40)
             start = _format_clip_timestamp(clip.get("start"))
             end = _format_clip_timestamp(clip.get("end"))
-            status = _report_value(clip.get("status", "pending"), 40)
-            lines.append(
-                f"  {clip_index}. {title} | النوع: {clip_type} | "
-                f"الوقت: {start}–{end} | الحالة: {status}"
+            status = "" if uniform_status else f" · {_report_value(clip.get('status', 'pending'))}"
+            blocks.append(
+                f"{clip_index}. {clip_type} · {start}–{end}{status}\n{title}"
             )
-        lines.append("")
 
     body_limit = QUEUE_REPORT_MAX_CHARS - 80
-    chunks = _split_report_lines(lines, body_limit)
+    chunks = _split_report_blocks(blocks, body_limit)
     for index, body in enumerate(chunks, 1):
         heading = f"{QUEUE_REPORT_PREFIX} ({index}/{len(chunks)})"
         send_message(bot_token, chat_id, f"{heading}\n{body}")

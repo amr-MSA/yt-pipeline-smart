@@ -108,20 +108,161 @@ class LongSmartPipelineTests(unittest.TestCase):
         self.assertEqual(result["42:77"], "succeeded")
         report = "\n".join(sent)
         self.assertIn("17 مقطعًا", report)
-        self.assertIn("3 ملف/ملفات", report)
+        self.assertIn("3 ملفات · 17 مقطعًا", report)
         self.assertIn("Fixture source title", report)
+        self.assertIn("https://youtu.be/fixture-video", report)
+        self.assertIn("الطلب 77", report)
+        self.assertIn("✅ جاهز — انتهت المعالجة؛ لم يبدأ النشر.", report)
         for index in range(3):
             queue_id = queue_utils.queue_id_for_request(f"42:77:part:0:file:{index}")
             self.assertIn(f"{queue_id}.json", report)
         for index in range(17):
-            self.assertIn(f"fixture clip {index + 1}", report)
-        self.assertIn("النوع: shorts", report)
-        self.assertIn("الوقت: 00:00:00–00:00:30", report)
+            title = f"fixture clip {index + 1} " + ("x" * 320)
+            clip_type = "shorts" if index % 2 else "long"
+            start = f"00:{(index * 30) // 60:02d}:{(index * 30) % 60:02d}"
+            end_seconds = (index + 1) * 30
+            end = f"00:{end_seconds // 60:02d}:{end_seconds % 60:02d}"
+            self.assertIn(title, report)
+            self.assertIn(f"{clip_type} · {start}–{end}", report)
+        self.assertEqual(report.count("الحالة: pending"), 3)
+        self.assertNotIn("| الحالة: pending", report)
         self.assertGreater(len(sent), 1)
         self.assertTrue(
             all(f"({index}/{len(sent)})" in message for index, message in enumerate(sent, 1))
         )
-        self.assertTrue(all(len(message) <= pipeline.QUEUE_REPORT_MAX_CHARS for message in sent))
+        self.assertTrue(
+            all(
+                pipeline._telegram_text_length(message) <= pipeline.QUEUE_REPORT_MAX_CHARS
+                for message in sent
+            )
+        )
+
+    def test_manifest_report_keeps_mixed_statuses_with_their_clips(self):
+        sent = []
+        queue_files = [
+            (
+                "mixed-status.json",
+                {
+                    "part_index": 0,
+                    "file_index": 0,
+                    "clips": [
+                        {
+                            "title": "Waiting title",
+                            "type": "shorts",
+                            "start": 0,
+                            "end": 10,
+                            "status": "pending",
+                        },
+                        {
+                            "title": "Published title",
+                            "type": "long",
+                            "start": 10,
+                            "end": 20,
+                            "status": "published",
+                        },
+                    ],
+                },
+            )
+        ]
+        with patch.object(
+            pipeline, "send_message", side_effect=lambda token, chat, text: sent.append(text)
+        ):
+            pipeline._send_queue_manifest_report(
+                "test-token",
+                42,
+                {"message_id": 77},
+                "https://youtu.be/fixture-video",
+                "Fixture source title",
+                queue_files,
+            )
+
+        report = "\n".join(sent)
+        self.assertIn("حالات متعددة", report)
+        self.assertIn("1. shorts · 00:00:00–00:00:10 · pending\nWaiting title", report)
+        self.assertIn("2. long · 00:00:10–00:00:20 · published\nPublished title", report)
+
+    def test_manifest_report_does_not_truncate_long_clip_titles(self):
+        title = "عنوان كامل " + ("x" * 1200)
+        sent = []
+        queue_files = [
+            (
+                "long-title.json",
+                {
+                    "part_index": 0,
+                    "file_index": 0,
+                    "clips": [
+                        {
+                            "title": title,
+                            "type": "shorts",
+                            "start": 0,
+                            "end": 30,
+                            "status": "pending",
+                        }
+                    ],
+                },
+            )
+        ]
+        with patch.object(
+            pipeline, "send_message", side_effect=lambda token, chat, text: sent.append(text)
+        ):
+            pipeline._send_queue_manifest_report(
+                "test-token",
+                42,
+                {"message_id": 77},
+                "https://youtu.be/fixture-video",
+                "Fixture source title",
+                queue_files,
+            )
+
+        self.assertIn(title, "\n".join(sent))
+        self.assertTrue(
+            all(
+                pipeline._telegram_text_length(message) <= pipeline.QUEUE_REPORT_MAX_CHARS
+                for message in sent
+            )
+        )
+
+    def test_emoji_heavy_title_is_split_within_telegram_limit(self):
+        title = "😀" * 1800
+        sent = []
+        queue_files = [
+            (
+                "emoji-title.json",
+                {
+                    "part_index": 0,
+                    "file_index": 0,
+                    "clips": [
+                        {
+                            "title": title,
+                            "type": "shorts",
+                            "start": 0,
+                            "end": 30,
+                            "status": "pending",
+                        }
+                    ],
+                },
+            )
+        ]
+        with patch.object(
+            pipeline, "send_message", side_effect=lambda token, chat, text: sent.append(text)
+        ):
+            pipeline._send_queue_manifest_report(
+                "test-token",
+                42,
+                {"message_id": 77},
+                "https://youtu.be/fixture-video",
+                "Fixture source title",
+                queue_files,
+            )
+
+        bodies = "".join(message.split("\n", 1)[1] for message in sent)
+        self.assertIn(title, bodies)
+        self.assertTrue(
+            all(
+                pipeline._telegram_text_length(message) <= pipeline.QUEUE_REPORT_MAX_CHARS
+                for message in sent
+            )
+        )
 
     def test_confirmed_failure_gets_one_next_day_retry_then_skips_and_continues(self):
         outcomes = [FakeHttpFailure(403), FakeHttpFailure(403), "confirmed-fixture-id"]
