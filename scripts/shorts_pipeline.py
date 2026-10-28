@@ -34,6 +34,7 @@ from video_compositor import compose_vertical
 PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATE_DIR = os.path.join(PROJECT_DIR, "state")
 DOWNLOAD_DIR = os.path.join(PROJECT_DIR, "downloads_short")
+DIRECT_LAYOUT_PATH = os.path.join(PROJECT_DIR, "assets", "shorts_layout_direct.json")
 BOT_NAME = "shorts"
 CLIP_START = 0
 CLIP_END = 60
@@ -60,7 +61,12 @@ def download_clip(url: str, out_path: str) -> dict:
 
 
 def apply_template(raw_path: str, final_path: str) -> bool:
-    compose_vertical(raw_path, final_path, label="SHORTS")
+    compose_vertical(
+        raw_path,
+        final_path,
+        label="SHORTS",
+        layout_path=DIRECT_LAYOUT_PATH,
+    )
     return True
 
 

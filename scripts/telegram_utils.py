@@ -13,10 +13,9 @@ TELEGRAM_API = "https://api.telegram.org/bot{token}/{method}"
 GENERIC_URL_RE = re.compile(r"https?://[^\s<>]+", re.IGNORECASE)
 TRAILING_URL_PUNCTUATION = ".,!?;:'\"،؛؟)]}>"
 
-# نمط للتعرف على Long أو /long، بحالة أحرف مختلفة ومع أو بدون مسافة،
-# متبوعًا برابط من أي منصة يدعمها yt-dlp.
+# أنماط Long موحّدة: /long و\long وlong، أو «جيمناي»/Gemini قبل رابط المصدر.
 LONG_COMMAND_RE = re.compile(
-    r"^\s*/?long(?:@\w+)?\s*"
+    r"^\s*(?:(?:[/\\]+)?long(?:@\w+)?|جيمناي|gemini)\s*"
     r"(https?://[^\s<>]+)",
     re.IGNORECASE,
 )
@@ -395,7 +394,8 @@ def fetch_all_new_messages(bot_token: str, state_dir: str, bot_name: str) -> tup
                     "message_id": msg["message_id"],
                     "date": int(msg.get("date", time.time())),
                     "update_id": int(update.get("update_id", 0)),
-                    "text": text.strip(),
+                    # خزّن المصدر بعد إزالة بادئة الأمر حتى لا تنتقل إلى أي معالجة لاحقة.
+                    "text": url,
                 }
             )
             continue

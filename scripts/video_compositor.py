@@ -14,8 +14,8 @@ TEMPLATE_GLOB = os.path.join(PROJECT_DIR, "assets", "templates", "shorts", "*.pn
 COMPOSITE_MARKER = "yt-pipeline-smart-vertical-v1"
 
 
-def _load_layout() -> dict[str, Any]:
-    with open(LAYOUT_PATH, encoding="utf-8") as handle:
+def _load_layout(layout_path: str | None = None) -> dict[str, Any]:
+    with open(layout_path or LAYOUT_PATH, encoding="utf-8") as handle:
         return json.load(handle)
 
 
@@ -71,7 +71,12 @@ def validate_output(raw_path: str, final_path: str, tolerance: float = 0.25) -> 
     return {"raw": raw, "final": final}
 
 
-def compose_vertical(raw_path: str, final_path: str, label: str = "SHORTS") -> dict[str, Any]:
+def compose_vertical(
+    raw_path: str,
+    final_path: str,
+    label: str = "SHORTS",
+    layout_path: str | None = None,
+) -> dict[str, Any]:
     """Create one output without cropping the foreground source or duplicating audio."""
     source_probe = _probe(raw_path)
     source_video = next(
@@ -80,7 +85,7 @@ def compose_vertical(raw_path: str, final_path: str, label: str = "SHORTS") -> d
     )
     if source_video.get("tags", {}).get("handler_name") == COMPOSITE_MARKER:
         raise RuntimeError("المصدر سبق تركيبه؛ أوقف العملية لمنع تراكب القالب مرتين")
-    layout = _load_layout()
+    layout = _load_layout(layout_path)
     out = layout["output"]
     box = layout["main_video"]
     background = layout["background"]
