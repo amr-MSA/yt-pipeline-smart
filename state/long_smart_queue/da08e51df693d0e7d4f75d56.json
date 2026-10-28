@@ -25,9 +25,8 @@
       "end": 1272.93,
       "title": "فايز الكندري: هل الحرب بسبب الخلاف العقدي أم دفع الصيال؟",
       "description": "قراءة وتفكيك لتغريدة الشيخ فايز الكندري حول التمييز بين الخلاف العقدي وميدان المواجهة ودفع العدوان.",
-      "status": "skipped",
-      "youtube_url": null,
-      "skip_reason": "temporary_single_clip_retry"
+      "status": "pending",
+      "youtube_url": null
     },
     {
       "type": "shorts",
@@ -35,9 +34,8 @@
       "end": 1481.22,
       "title": "تحذير خطير من إثارة النعرات والحروب الطائفية",
       "description": "تسليط الضوء على خطورة تحويل الصراعات السياسية إلى صراعات طائفية وتأثير ذلك الكارثي على السلم الأهلي.",
-      "status": "skipped",
-      "youtube_url": null,
-      "skip_reason": "temporary_single_clip_retry"
+      "status": "pending",
+      "youtube_url": null
     },
     {
       "type": "shorts",
@@ -45,9 +43,8 @@
       "end": 1569.1,
       "title": "قراءة في المشهد اليمني وضرورة الحوار بين العلماء",
       "description": "حديث عن التطورات الميدانية في اليمن وأهمية اجتماع العلماء والقيادات للوصول إلى نقاشات وحلول إيجابية.",
-      "status": "skipped",
-      "youtube_url": null,
-      "skip_reason": "temporary_single_clip_retry"
+      "status": "pending",
+      "youtube_url": null
     },
     {
       "type": "long",
@@ -55,9 +52,8 @@
       "end": 1757.61,
       "title": "تفكيك بيان الإخوان المسلمين ونقد الأدبيات السياسية للجماعة",
       "description": "مناقشة تفصيلية لبيان حركة الإخوان المسلمين الميد بدعوة الأزهر الشريف، مع تقديم قراءة نقدية لمسار الجماعة وأدبياتها السياسية.",
-      "status": "skipped",
-      "youtube_url": null,
-      "skip_reason": "temporary_single_clip_retry"
+      "status": "pending",
+      "youtube_url": null
     }
   ]
 }
