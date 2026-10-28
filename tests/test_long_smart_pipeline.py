@@ -70,6 +70,59 @@ class LongSmartPipelineTests(unittest.TestCase):
         with open(out_path, "wb") as handle:
             handle.write(b"fixture only; never uploaded")
 
+    def test_new_long_command_reports_every_queue_file_and_clip(self):
+        clips = [
+            {
+                "start": index * 30,
+                "end": (index + 1) * 30,
+                "type": "shorts" if index % 2 else "long",
+                "title": f"fixture clip {index + 1} " + ("x" * 320),
+                "description": "fixture description",
+            }
+            for index in range(17)
+        ]
+        command = {
+            "url": "https://youtu.be/fixture-video",
+            "chat_id": 42,
+            "message_id": 77,
+            "date": "2026-10-28T00:00:00+00:00",
+            "update_id": 100,
+        }
+        sent = []
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "test-gemini-key"}), \
+                patch.object(pipeline, "STATE_DIR", self.state_dir), \
+                patch.object(pipeline, "WORK_DIR", os.path.join(self.temp.name, "work")), \
+                patch.object(
+                    pipeline, "fetch_transcript",
+                    return_value={
+                        "video_id": "fixture-video",
+                        "title": "Fixture source title",
+                        "segments": [{"text": "fixture"}],
+                    },
+                ), \
+                patch.object(pipeline, "split_segments", return_value=[[{"text": "fixture"}]]), \
+                patch.object(pipeline, "suggest_clips", return_value=clips), \
+                patch.object(pipeline, "send_message", side_effect=lambda token, chat, text: sent.append(text)):
+            result = pipeline.handle_new_long_commands("test-token", [command])
+
+        self.assertEqual(result["42:77"], "succeeded")
+        report = "\n".join(sent)
+        self.assertIn("17 مقطعًا", report)
+        self.assertIn("3 ملف/ملفات", report)
+        self.assertIn("Fixture source title", report)
+        for index in range(3):
+            queue_id = queue_utils.queue_id_for_request(f"42:77:part:0:file:{index}")
+            self.assertIn(f"{queue_id}.json", report)
+        for index in range(17):
+            self.assertIn(f"fixture clip {index + 1}", report)
+        self.assertIn("النوع: shorts", report)
+        self.assertIn("الوقت: 00:00:00–00:00:30", report)
+        self.assertGreater(len(sent), 1)
+        self.assertTrue(
+            all(f"({index}/{len(sent)})" in message for index, message in enumerate(sent, 1))
+        )
+        self.assertTrue(all(len(message) <= pipeline.QUEUE_REPORT_MAX_CHARS for message in sent))
+
     def test_confirmed_failure_gets_one_next_day_retry_then_skips_and_continues(self):
         outcomes = [FakeHttpFailure(403), FakeHttpFailure(403), "confirmed-fixture-id"]
         upload_calls = []

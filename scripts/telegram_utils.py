@@ -31,6 +31,7 @@ INLINE_TITLE_PREFIX_RE = re.compile(
 )
 PIPELINE_REPORT_PREFIXES = (
     "📊 تقرير الدفعة",
+    "📋 تقرير ملفات /long",
     "✅ تم نشر الفيديو بنجاح:",
     "📊 تم قبول ",
 )

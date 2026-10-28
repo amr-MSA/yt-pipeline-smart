@@ -45,6 +45,86 @@ DOWNLOAD_DIR = os.path.join(PROJECT_DIR, "downloads_long_smart")
 WORK_DIR = os.path.join(PROJECT_DIR, "work_long_smart")
 DAILY_LIMIT = 8  # حد نشر يومي منفصل خاص بخط long-smart فقط
 TRANSCRIPT_CHUNK_CHARS = 45000
+QUEUE_REPORT_PREFIX = "📋 تقرير ملفات /long"
+QUEUE_REPORT_MAX_CHARS = 3500
+
+
+def _report_value(value: object, max_length: int = 1000) -> str:
+    text = " ".join(str(value or "").split()) or "—"
+    if len(text) > max_length:
+        return text[:max_length - 1] + "…"
+    return text
+
+
+def _format_clip_timestamp(value: object) -> str:
+    try:
+        seconds = max(0, int(float(value)))
+    except (TypeError, ValueError, OverflowError):
+        return _report_value(value, 40)
+    hours, remainder = divmod(seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
+def _split_report_lines(lines: list[str], max_chars: int) -> list[str]:
+    chunks = []
+    current = ""
+    for line in lines:
+        fragments = [line[i:i + max_chars] for i in range(0, len(line), max_chars)] or [""]
+        for fragment in fragments:
+            separator = "\n" if current else ""
+            if len(current) + len(separator) + len(fragment) > max_chars:
+                chunks.append(current)
+                current = fragment
+            else:
+                current += separator + fragment
+    if current:
+        chunks.append(current)
+    return chunks or [""]
+
+
+def _send_queue_manifest_report(
+    bot_token: str,
+    chat_id: int,
+    cmd: dict,
+    source_url: str,
+    source_title: str,
+    queue_files: list[tuple[str, dict]],
+) -> None:
+    total_clips = sum(len(batch.get("clips", [])) for _, batch in queue_files)
+    lines = [
+        "✅ اكتملت المعالجة وحُفظت ملفات الطابور؛ لم يبدأ النشر بعد.",
+        f"🆔 رقم رسالة الطلب: {cmd['message_id']}",
+        f"🎬 الرابط: {_report_value(source_url)}",
+        f"📝 عنوان المصدر: {_report_value(source_title)}",
+        f"📦 الإجمالي: {len(queue_files)} ملف/ملفات — {total_clips} مقطعًا",
+        "",
+    ]
+    for file_number, (filename, batch) in enumerate(queue_files, 1):
+        clips = batch.get("clips", [])
+        part_number = int(batch.get("part_index", 0)) + 1
+        file_index = int(batch.get("file_index", file_number - 1)) + 1
+        lines.append(
+            f"📁 الملف {file_number} (الجزء {part_number}، الملف {file_index}): "
+            f"{filename} — {len(clips)} مقطعًا"
+        )
+        for clip_index, clip in enumerate(clips, 1):
+            title = _report_value(clip.get("title"), 1000)
+            clip_type = _report_value(clip.get("type"), 40)
+            start = _format_clip_timestamp(clip.get("start"))
+            end = _format_clip_timestamp(clip.get("end"))
+            status = _report_value(clip.get("status", "pending"), 40)
+            lines.append(
+                f"  {clip_index}. {title} | النوع: {clip_type} | "
+                f"الوقت: {start}–{end} | الحالة: {status}"
+            )
+        lines.append("")
+
+    body_limit = QUEUE_REPORT_MAX_CHARS - 80
+    chunks = _split_report_lines(lines, body_limit)
+    for index, body in enumerate(chunks, 1):
+        heading = f"{QUEUE_REPORT_PREFIX} ({index}/{len(chunks)})"
+        send_message(bot_token, chat_id, f"{heading}\n{body}")
 
 
 
@@ -93,10 +173,6 @@ def handle_new_long_commands(bot_token: str, long_commands: list[dict]) -> dict[
             transcript_chunks = split_segments(
                 transcript["segments"], max_chars=TRANSCRIPT_CHUNK_CHARS
             )
-            total_clips = 0
-            total_clips = 0
-            total_files = 0
-
             def _file_queue_id(part_index: int, file_index: int) -> str:
                 return queue_utils.queue_id_for_request(
                     f"{key}:part:{part_index}:file:{file_index}"
@@ -110,10 +186,6 @@ def handle_new_long_commands(bot_token: str, long_commands: list[dict]) -> dict[
                     print(f"⏭️ الجزء {part_index + 1} محفوظ مسبقًا، لن يعاد تحليله.")
                     file_index = 0
                     while queue_utils.queue_exists(STATE_DIR, _file_queue_id(part_index, file_index)):
-                        total_clips += queue_utils.batch_clip_count(
-                            STATE_DIR, _file_queue_id(part_index, file_index)
-                        )
-                        total_files += 1
                         file_index += 1
                     continue
                 clips = suggest_clips(gemini_api_key, transcript["title"], chunk)
@@ -139,31 +211,38 @@ def handle_new_long_commands(bot_token: str, long_commands: list[dict]) -> dict[
                         created_at=cmd.get("date"),
                         fifo_order=cmd.get("update_id"),
                     )
-                total_clips += len(clips)
-                total_files += len(groups)
-
             expected_queue_ids = [
                 _file_queue_id(part_index, 0)
                 for part_index in range(len(transcript_chunks))
             ]
-            if not transcript_chunks or total_clips <= 0 or not all(
+            if not transcript_chunks or not all(
                 queue_utils.queue_exists(STATE_DIR, queue_id) for queue_id in expected_queue_ids
             ):
                 raise RuntimeError(
                     "لم تُحفظ كل دفعات Gemini في ملفات Queue؛ ستبقى رسالة الطلب للمحاولة التالية."
                 )
+            queue_files = []
+            for part_index in range(len(transcript_chunks)):
+                file_index = 0
+                while queue_utils.queue_exists(STATE_DIR, _file_queue_id(part_index, file_index)):
+                    queue_id_for_file = _file_queue_id(part_index, file_index)
+                    path = os.path.join(
+                        STATE_DIR, queue_utils.QUEUE_DIR_NAME, f"{queue_id_for_file}.json"
+                    )
+                    queue_files.append((os.path.basename(path), queue_utils.load_batch(path)))
+                    file_index += 1
+            total_clips = sum(len(batch.get("clips", [])) for _, batch in queue_files)
+            if not queue_files or total_clips <= 0:
+                raise RuntimeError("لم تُحفظ أي مقاطع في ملفات Queue.")
             results[key] = "succeeded"
 
-            send_message(
-                bot_token, chat_id,
-                f"✅ تم إنهاء الطلب بنجاح عبر جيمناي.\n"
-                f"🆔 رسالة الطلب: {cmd['message_id']}\n"
-                f"🎬 المصدر: {url}\n"
-                f"📝 العنوان: {transcript['title']}\n"
-                f"تم حفظ {total_clips} مقطعًا مقترحًا في {total_files} ملف/ملفات Queue "
-                f"(كل ملف حتى {queue_utils.MAX_CLIPS_PER_FILE} مقاطع).\n\n"
-                f"📌 سيُنشر ملف Queue واحد كاملًا كل يوم بالترتيب، حتى تنتهي كل المقاطع.\n"
-                f"ℹ️ إرسال نفس الرابط في رسالة جديدة سيُعامل كطلب جديد مستقل.",
+            _send_queue_manifest_report(
+                bot_token=bot_token,
+                chat_id=chat_id,
+                cmd=cmd,
+                source_url=url,
+                source_title=transcript["title"],
+                queue_files=queue_files,
             )
 
         except Exception as e:

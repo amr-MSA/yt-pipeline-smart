@@ -9,6 +9,30 @@ import telegram_utils
 
 
 class TelegramFifoTests(unittest.TestCase):
+    def test_long_queue_report_with_source_url_is_not_reprocessed(self):
+        updates = [{
+            "update_id": 98766,
+            "message": {
+                "text": "📋 تقرير ملفات /long (1/1)" + chr(10) + "🎬 الرابط: https://youtu.be/fixture123",
+                "chat": {"id": 123},
+                "message_id": 457,
+                "date": 1793012346,
+            },
+        }]
+        with tempfile.TemporaryDirectory() as state_dir:
+            with (
+                patch.object(telegram_utils, "_fetch_updates", return_value=updates),
+                patch.object(telegram_utils, "load_smart_long_inbox", return_value={}),
+                patch.object(telegram_utils, "save_smart_long_inbox"),
+                patch.object(telegram_utils, "_acknowledge_updates"),
+            ):
+                links, commands = telegram_utils.fetch_all_new_messages(
+                    "unused-test-token", state_dir, "shorts"
+                )
+
+        self.assertEqual(links, [])
+        self.assertEqual(commands, [])
+
     def test_long_command_keeps_message_date_and_global_update_id(self):
         updates = [{
             "update_id": 98765,
