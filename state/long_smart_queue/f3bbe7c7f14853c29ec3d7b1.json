@@ -1,0 +1,43 @@
+{
+  "video_id": "4IIaoKdsTf8",
+  "queue_id": "f3bbe7c7f14853c29ec3d7b1",
+  "request_key": "6828354904:102",
+  "created_at": "2026-10-28T07:19:15+00:00",
+  "fifo_order": 517522058,
+  "source_url": "https://youtu.be/4IIaoKdsTf8?si=vq7tHHvqok6pvQPb",
+  "source_title": "تلاوة أخطر طقس شيطاني بعد مواجهات مع أكبر سحرة في العالم | لقاء الموسم مع الشيخ صالح الزهراني",
+  "source_handle": "Dr.Haitham_Talaat",
+  "chat_id": 6828354904,
+  "part_index": 2,
+  "part_count": 4,
+  "file_index": 1,
+  "clips": [
+    {
+      "type": "shorts",
+      "start": 3612.51,
+      "end": 3674.94,
+      "title": "لماذا يطلب السحرة مرارة النمر ومخالب التمساح؟",
+      "description": "توضيح الأسباب الخفية وراء الطلبات التعجيزية الغريبة للسحرة لابتزاز الناس مالياً إيحاءً بصعوبة العمل.",
+      "status": "pending",
+      "youtube_url": null
+    },
+    {
+      "type": "shorts",
+      "start": 4145.21,
+      "end": 4252.5,
+      "title": "صلاة الاستخارة الشرعية أم استخارة السحرة بأسماء الشياطين؟",
+      "description": "مقارنة بين الاستخارة الشرعية المبنية على التوحيد وبين طقوس السحرة في كتابة الطلاسم والدعوة بالجن.",
+      "status": "pending",
+      "youtube_url": null
+    },
+    {
+      "type": "shorts",
+      "start": 4704.82,
+      "end": 4790.57,
+      "title": "كيف تميز بين سحر المحبة وسحر الكراهية من الرائحة؟",
+      "description": "شرح لكيفية استخدام السحرة للروائح الطيبة كالمسك للقبول والروائح الكريهة كالثوم والحلتيت للتفريق والحقد.",
+      "status": "pending",
+      "youtube_url": null
+    }
+  ]
+}

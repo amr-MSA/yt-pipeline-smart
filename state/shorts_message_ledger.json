@@ -79,5 +79,32 @@
     "video_id": "UjwSE5Ey_QE",
     "video_url": "https://youtu.be/UjwSE5Ey_QE",
     "dedupe_source": "published_url_48h"
+  },
+  "6828354904:102": {
+    "status": "succeeded",
+    "stage": "queue_created",
+    "chat_id": 6828354904,
+    "message_id": 102,
+    "source_url": "https://youtu.be/4IIaoKdsTf8?si=vq7tHHvqok6pvQPb",
+    "pipeline": "long-smart",
+    "delete_pending": false
+  },
+  "6828354904:98": {
+    "status": "succeeded",
+    "stage": "uploaded",
+    "chat_id": 6828354904,
+    "message_id": 98,
+    "source_url": "https://www.instagram.com/reel/Dd1Fz6YkR8N/?exln=MTg3ZWFvejV4dDYyYw==",
+    "video_id": "O-RINQczAAs",
+    "video_url": "https://youtu.be/O-RINQczAAs"
+  },
+  "6828354904:99": {
+    "status": "succeeded",
+    "stage": "uploaded",
+    "chat_id": 6828354904,
+    "message_id": 99,
+    "source_url": "https://www.instagram.com/reel/DfAMm4aooQp/?obrf=MXRjaGs2bjVzaHhiNg==",
+    "video_id": "_x1EhxHW_hE",
+    "video_url": "https://youtu.be/_x1EhxHW_hE"
   }
 }
