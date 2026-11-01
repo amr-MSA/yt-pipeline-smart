@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import glob
 import json
+import math
 import os
 import subprocess
 from typing import Any
@@ -90,6 +91,9 @@ def compose_vertical(
     box = layout["main_video"]
     background = layout["background"]
     video = layout["video"]
+    background_zoom = max(1.0, float(background.get("zoom", 1.0)))
+    background_width = max(out["width"], math.ceil(out["width"] * background_zoom / 2) * 2)
+    background_height = max(out["height"], math.ceil(out["height"] * background_zoom / 2) * 2)
     template_path = choose_template_path()
     template_has_alpha = _png_has_alpha(template_path)
     print(f"[{label}][COMPOSITOR] template={os.path.basename(template_path)}", flush=True)
@@ -120,7 +124,7 @@ def compose_vertical(
         )
     filter_graph = (
         f"[1:v]split=2[bgsrc][fgsrc];"
-        f"[bgsrc]scale={out['width']}:{out['height']}:force_original_aspect_ratio=increase,"
+        f"[bgsrc]scale={background_width}:{background_height}:force_original_aspect_ratio=increase,"
         f"crop={out['width']}:{out['height']},"
         f"gblur=sigma={background['blur_sigma']},"
         f"eq=brightness={background['brightness']}:saturation={background['saturation']}[bg];"
