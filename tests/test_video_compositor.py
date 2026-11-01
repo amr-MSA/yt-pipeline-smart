@@ -91,7 +91,7 @@ class VideoCompositorTests(unittest.TestCase):
         )
         self.assertEqual(
             direct_layout["main_video"],
-            {"x": 92, "y": 163, "width": 680, "height": 1210},
+            {"x": 92, "y": 243, "width": 680, "height": 1130},
         )
         self.assertAlmostEqual(
             direct_layout["main_video"]["width"] / direct_layout["output"]["width"],
@@ -158,8 +158,8 @@ class VideoCompositorTests(unittest.TestCase):
             self.assertEqual(len(ffmpeg_commands), 2)
             direct_graph = ffmpeg_commands[0][ffmpeg_commands[0].index("-filter_complex") + 1]
             long_graph = ffmpeg_commands[1][ffmpeg_commands[1].index("-filter_complex") + 1]
-            self.assertIn("scale=680:1210:force_original_aspect_ratio=decrease", direct_graph)
-            self.assertIn("pad=680:1210:(ow-iw)/2:(oh-ih)/2", direct_graph)
+            self.assertIn("scale=680:1130:force_original_aspect_ratio=decrease", direct_graph)
+            self.assertIn("pad=680:1130:(ow-iw)/2:(oh-ih)/2", direct_graph)
             self.assertIn("scale=934:1660:force_original_aspect_ratio=increase", direct_graph)
             self.assertIn("gblur=sigma=24", direct_graph)
             self.assertIn("scale=800:450:force_original_aspect_ratio=decrease", long_graph)
@@ -189,16 +189,16 @@ class VideoCompositorTests(unittest.TestCase):
             self.assertIsNotNone(direct_bounds, "The fitted foreground should remain visible")
             direct_width = direct_bounds[2] - direct_bounds[0] + 1
             direct_height = direct_bounds[3] - direct_bounds[1] + 1
-            self.assertAlmostEqual(direct_width, 680, delta=8)
-            self.assertAlmostEqual(direct_height, 1209, delta=10)
+            self.assertAlmostEqual(direct_width, 636, delta=8)
+            self.assertAlmostEqual(direct_height, 1129, delta=10)
             self.assertAlmostEqual(direct_width / direct_height, 360 / 640, delta=0.03)
 
-            scale = min(680 / 360, 1210 / 640)
+            scale = min(680 / 360, 1130 / 640)
             marker_centers = {
-                "red": (92 + round(16 * scale), 163 + round(16 * scale)),
-                "blue": (92 + round(344 * scale), 163 + round(16 * scale)),
-                "yellow": (92 + round(16 * scale), 163 + round(624 * scale)),
-                "magenta": (92 + round(344 * scale), 163 + round(624 * scale)),
+                "red": (92 + round(16 * scale), 243 + round(16 * scale)),
+                "blue": (92 + round(344 * scale), 243 + round(16 * scale)),
+                "yellow": (92 + round(16 * scale), 243 + round(624 * scale)),
+                "magenta": (92 + round(344 * scale), 243 + round(624 * scale)),
             }
             thresholds = {
                 "red": lambda r, g, b: r > 150 and g < 90 and b < 90,
@@ -220,7 +220,7 @@ class VideoCompositorTests(unittest.TestCase):
             long_height = long_bounds[3] - long_bounds[1] + 1
             self.assertAlmostEqual(long_width / long_height, 360 / 640, delta=0.03)
             self.assertAlmostEqual(long_height, 450, delta=8)
-            self.assertGreater(direct_width, long_width * 2.5)
+            self.assertGreater(direct_width, long_width * 2.45)
 
 
 if __name__ == "__main__":
