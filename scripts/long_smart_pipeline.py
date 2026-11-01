@@ -525,10 +525,14 @@ def run_daily_batch() -> None:
             if bot_token:
                 send_message(
                     bot_token, chat_id,
-                    f"✅ نُشر مقطع {done + 1}/{total} من الفيديو المصدر "
-                    f"\"{batch['source_title']}\" ({clip['type']}):\n{video_url}",
+                    f"✅ نُشر مقطع {done + 1}/{total}: "
+                    f"\"{title_for_upload}\" ({clip['type']}):\n{video_url}",
                 )
-            add_summary(chat_id, f"✅ نُشر: المقطع {done + 1}/{total} — {video_url}")
+            add_summary(
+                chat_id,
+                f"✅ نُشر: المقطع {done + 1}/{total} — "
+                f"\"{title_for_upload}\" — {video_url}",
+            )
             return "success"
 
         except Exception as exc:

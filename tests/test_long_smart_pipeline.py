@@ -287,6 +287,51 @@ class LongSmartPipelineTests(unittest.TestCase):
             )
         )
 
+    def test_published_messages_use_the_clip_title_sent_to_youtube(self):
+        batch = self.read_batch()
+        batch["source_title"] = "source-only title"
+        batch["clips"][0]["type"] = "shorts"
+        batch_path = os.path.join(
+            self.state_dir, "long_smart_queue", f"{self.queue_id}.json"
+        )
+        with open(batch_path, "w", encoding="utf-8") as handle:
+            json.dump(batch, handle)
+
+        sent = []
+        uploaded_titles = []
+
+        def fake_upload(youtube, file_path, title, description):
+            uploaded_titles.append(title)
+            return f"published-{len(uploaded_titles)}"
+
+        with patch.object(
+            pipeline.fixed_meta,
+            "build_final_title",
+            side_effect=lambda title: f"Clip title: {title}",
+        ), patch.object(
+            pipeline, "send_message", side_effect=lambda token, chat, text: sent.append(text)
+        ), patch.object(
+            pipeline, "_download_clip_range", side_effect=self.fake_download
+        ), patch.object(
+            pipeline, "_apply_shorts_template", return_value=False
+        ), patch.object(
+            pipeline, "_upload", side_effect=fake_upload
+        ):
+            pipeline.run_daily_batch()
+
+        expected_titles = ["Clip title: first #Shorts", "Clip title: second"]
+        self.assertEqual(uploaded_titles, expected_titles)
+        notices = [message for message in sent if message.startswith("✅ نُشر مقطع ")]
+        self.assertEqual(len(notices), len(expected_titles))
+        summary = next(
+            message for message in sent if message.startswith("📋 ملخص تشغيل Smart Long اليوم:")
+        )
+        for title in expected_titles:
+            self.assertTrue(any(title in message for message in notices))
+            self.assertIn(title, summary)
+        self.assertNotIn("source-only title", "\n".join(notices))
+        self.assertNotIn("source-only title", summary)
+
     def test_confirmed_failure_defers_then_skips_after_retry_while_file_continues(self):
         outcomes = [FakeHttpFailure(403), "same-day-success", FakeHttpFailure(403)]
         upload_calls = []
