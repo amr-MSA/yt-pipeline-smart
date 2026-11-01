@@ -13,15 +13,18 @@
     4) لا يُنشر أي شيء فورًا في هذه المرحلة — النشر يتم في المرحلة ب فقط.
 
 المرحلة ب) عند كل تشغيل يومي مجدول (run_daily_batch):
-    - يعالج ملف الطابور الأقدم فقط، ويكمل مقاطعه بالترتيب.
-    - الفشل المؤكد ينتظر حتى يوم UTC التالي؛ الفشل المؤكد الثاني يُسقط
-      المقطع بأمان. نتيجة الرفع الملتبسة توقف الملف ولا تُعاد تلقائيًا.
-    - لا يدخل الملف التالي في التشغيل نفسه بعد إكمال الملف الحالي.
+    - يبدأ بمقاطع ملف الإعادة المؤقتة المستحقة، ثم يواصل المقاطع العادية
+      في ملف المصدر الأقدم، بحد أقصى 8 مقاطع في الملف.
+    - الإخفاقات المؤكدة والنتائج الملتبسة تُعاد مرة واحدة في يوم UTC التالي؛
+      تُفحص علامة الطلب أولًا لحماية الرفع من التكرار.
+    - إذا نجح أي مقطع من الإعادة المؤقتة لا يبدأ ملف مصدر جديد؛ وإذا فشلت
+      كل الإعادات تُنهى المقاطع الفاشلة ويبدأ الملف التالي في التشغيل نفسه.
     - عند اكتشاف خطأ كوتا من يوتيوب في أي لحظة، يتوقف فورًا عن أي محاولات
       نشر أخرى في هذا التشغيل ويسجّل ذلك.
     - العنوان والوصف النهائيان = عنوان/وصف جيمناي + توقيع ثابت من
       assets/fixed_title.txt و assets/fixed_description.txt.
 """
+import datetime
 import os
 import sys
 import traceback
@@ -365,18 +368,12 @@ def run_daily_batch() -> None:
 
     os.makedirs(DOWNLOAD_DIR, exist_ok=True)
     queue_utils.merge_latest_state(STATE_DIR)
-
+    today = datetime.datetime.now(datetime.timezone.utc).date()
     active_batches = queue_utils.list_active_batches(STATE_DIR)
+    retry_candidates = queue_utils.refresh_temporary_retry_queue(STATE_DIR, today)
     if not active_batches:
         print("📭 لا توجد طوابير long-smart نشطة اليوم. إنهاء.")
         return
-
-    # التزم بملف واحد في اليوم: لا ننتقل إلى Queue التالي حتى تنتهي كل
-    # مقاطع الملف الحالي. نكرر نفس المرجع بعدد المقاطع ونقرأ حالته من القرص
-    # في بداية كل دورة، لذلك يبقى غير المنشور لليوم التالي عند توقف quota.
-    first_batch = active_batches[0]
-    active_batches = [first_batch] * len(first_batch["clips"])
-    print(f"📦 عدد ملفات Queue النشطة: {len(queue_utils.list_active_batches(STATE_DIR))}")
 
     if not publish_quota.can_publish(STATE_DIR, DAILY_LIMIT):
         print(f"🚫 تم الوصول للحد اليومي لخط long-smart ({DAILY_LIMIT}). لا نشر اليوم.")
@@ -395,6 +392,16 @@ def run_daily_batch() -> None:
     def add_summary(chat_id: int, message: str) -> None:
         daily_summary.setdefault(chat_id, []).append(message)
 
+    def report_failed(batch: dict, clip_index: int, message: str) -> None:
+        queue_id = batch.get("queue_id", batch["video_id"])
+        chat_id = batch["chat_id"]
+        total = len(batch.get("clips", []))
+        details = f"🆔 الطابور: {queue_id} — المقطع: {clip_index + 1}/{total}\n{message}"
+        add_unpublished(chat_id, details)
+        if bot_token:
+            send_message(bot_token, chat_id, message)
+        add_summary(chat_id, message)
+
     def send_unpublished_reports() -> None:
         for chat_id, results in unpublished_results.items():
             report = (
@@ -404,82 +411,84 @@ def run_daily_batch() -> None:
             for start in range(0, len(report), 3800):
                 send_message(bot_token, chat_id, report[start:start + 3800])
 
-    for batch_idx, batch in enumerate(active_batches, 1):
-        batch = queue_utils.load_batch(batch["_path"])
-        if not publish_quota.can_publish(STATE_DIR, DAILY_LIMIT):
-            print("🚫 تم الوصول للحد اليومي أثناء التشغيل. إيقاف باقي الدفعات.")
-            break
+    def process_clip(queue_id: str, clip_index: int, *, retry_attempt: bool) -> str:
+        batch_path = os.path.join(
+            STATE_DIR, queue_utils.QUEUE_DIR_NAME, f"{queue_id}.json"
+        )
+        try:
+            batch = queue_utils.load_batch(batch_path)
+            clip = batch["clips"][clip_index]
+        except (OSError, ValueError, KeyError, IndexError):
+            return "stale"
+
+        prior_status = clip.get("status", "pending")
+        if prior_status in {"published", "skipped", "failed"}:
+            return "stale"
+        if not retry_attempt and prior_status != "pending":
+            return "stale"
+        if retry_attempt and prior_status not in {
+            "failed_retryable", "upload_unknown", "uploading"
+        }:
+            return "stale"
 
         video_id = batch["video_id"]
-        queue_id = batch.get("queue_id", video_id)
         chat_id = batch["chat_id"]
-        clip_idx = queue_utils.get_next_pending_index(batch)
-        if clip_idx is None:
-            waiting = next(
-                (i for i, item in enumerate(batch["clips"])
-                 if item.get("status") == "failed_retryable"),
-                None,
-            )
-            if waiting is not None:
-                message = (
-                    f"⏸️ ينتظر المقطع {waiting + 1}/{len(batch['clips'])} موعد المحاولة اليومية التالية "
-                    "بعد فشل مؤكد؛ لم يُحذف ولم تُجرَ محاولة أخرى اليوم."
-                )
-                add_summary(batch["chat_id"], message)
-            break
-
-        clip = batch["clips"][clip_idx]
-        marker = request_marker("long-smart", f"{queue_id}:{clip_idx}")
+        marker = request_marker("long-smart", f"{queue_id}:{clip_index}")
         done, total = queue_utils.batch_progress(batch)
-        print(
-            f"\n{'='*50}\n[ملف Queue {batch.get('part_index', 0) + 1}/"
-            f"{batch.get('part_count', 1)} — دورة {batch_idx}/{len(active_batches)}] "
-            f"فيديو {video_id} — مقطع {done + 1}/{total} (نوع: {clip['type']})"
-        )
-
-        raw_path = os.path.join(DOWNLOAD_DIR, f"raw_{video_id}_{clip_idx}.mp4")
-        final_path = os.path.join(DOWNLOAD_DIR, f"final_{video_id}_{clip_idx}.mp4")
+        if prior_status == "uploading" and bool(clip.get("retry_attempted")):
+            # بقيت محاولة اليوم السابق في حالة uploading بعد انقطاع؛ لا نعيدها.
+            existing_id = recent_markers.get(marker)
+            if existing_id:
+                prior_status = "uploading"
+            else:
+                queue_utils.mark_clip_skipped(
+                    STATE_DIR, queue_id, clip_index, "retry_interrupted_unconfirmed"
+                )
+                report_failed(
+                    batch, clip_index,
+                    "⏭️ تعذر تأكيد محاولة الإعادة السابقة بعد انقطاع؛ تم إنهاء المقطع دون إعادة رفعه مرة أخرى.",
+                )
+                return "failed"
 
         try:
             youtube_existing_id = recent_markers.get(marker)
             if youtube_existing_id:
                 video_url = f"https://youtu.be/{youtube_existing_id}"
                 print(f"⏭️ تم العثور على النشر السابق في YouTube: {video_url}")
-                queue_utils.mark_clip_published(STATE_DIR, queue_id, clip_idx, video_url)
+                queue_utils.mark_clip_published(STATE_DIR, queue_id, clip_index, video_url)
                 publish_quota.record_publish_success(STATE_DIR)
-                recent_markers[marker] = youtube_existing_id
                 if bot_token:
                     send_message(
                         bot_token, chat_id,
                         f"✅ تم تأكيد نشر مقطع {done + 1}/{total} سابقًا:\n{video_url}",
                     )
                 add_summary(chat_id, f"✅ مؤكد سابقًا: المقطع {done + 1}/{total} — {video_url}")
-                continue
+                return "success"
 
-            current_status = queue_utils.get_clip_status(STATE_DIR, queue_id, clip_idx)
-            if current_status in {"upload_unknown", "uploading"}:
-                if current_status == "uploading":
-                    queue_utils.mark_clip_upload_unknown(
-                        STATE_DIR, queue_id, clip_idx, "interrupted_upload"
-                    )
-                message = (
-                    f"⚠️ تعذر تأكيد رفع المقطع {done + 1}/{total}. "
-                    "أُوقف هذا الملف للحماية من التكرار، ولن يُسقط المقطع أو يُرفع مجددًا تلقائيًا."
+            # الحالة الملتبسة تحصل على فرصة واحدة في اليوم التالي. إذا كانت
+            # المحاولة نفسها قد انقطعت، لا نكرر الرفع الأعمى بعد فحص العلامة.
+            if retry_attempt and bool(clip.get("retry_attempted")):
+                queue_utils.mark_clip_skipped(
+                    STATE_DIR, queue_id, clip_index, "retry_interrupted_unconfirmed"
                 )
-                add_unpublished(chat_id, f"🆔 الطابور: {queue_id} — المقطع: {clip_idx + 1}\n{message}")
-                if bot_token:
-                    send_message(bot_token, chat_id, message)
-                add_summary(chat_id, f"⚠️ غير مؤكد: المقطع {done + 1}/{total}")
-                break
+                report_failed(
+                    batch, clip_index,
+                    "⏭️ لم تظهر علامة نشر للمحاولة المؤجلة التي انقطعت؛ تم إنهاء المقطع لتجنب التكرار.",
+                )
+                return "failed"
 
+            raw_path = os.path.join(DOWNLOAD_DIR, f"raw_{video_id}_{clip_index}.mp4")
+            final_path = os.path.join(DOWNLOAD_DIR, f"final_{video_id}_{clip_index}.mp4")
             print(f"⬇️ تحميل المقطع ({clip['start']}-{clip['end']} ثانية)...")
-            _download_clip_range(batch["source_url"], clip["start"], clip["end"], raw_path, cookies_env)
+            _download_clip_range(
+                batch["source_url"], clip["start"], clip["end"], raw_path, cookies_env
+            )
 
             actual_raw = raw_path
             if not os.path.exists(actual_raw):
                 candidates = [
-                    f for f in os.listdir(DOWNLOAD_DIR)
-                    if f.startswith(f"raw_{video_id}_{clip_idx}")
+                    filename for filename in os.listdir(DOWNLOAD_DIR)
+                    if filename.startswith(f"raw_{video_id}_{clip_index}")
                 ]
                 if candidates:
                     actual_raw = os.path.join(DOWNLOAD_DIR, candidates[0])
@@ -498,21 +507,21 @@ def run_daily_batch() -> None:
                     source_url=batch.get("source_url"),
                 ), marker
             )
+            title_for_upload = (
+                f"{final_title} #Shorts" if clip["type"] == "shorts" else final_title
+            )
 
-            title_for_upload = f"{final_title} #Shorts" if clip["type"] == "shorts" else final_title
-
-            # سجّل بداية الرفع قبل استدعاء YouTube. عند انقطاع الاتصال بعد
-            # قبول YouTube للملف، نستخدم upload_unknown بدل إعادة الرفع.
-            queue_utils.mark_clip_uploading(STATE_DIR, queue_id, clip_idx)
+            # تحفظ حالة المحاولة قبل الشبكة؛ بعد الانقطاع نفحص علامة الطلب أولًا.
+            queue_utils.mark_clip_uploading(
+                STATE_DIR, queue_id, clip_index, retry_attempt=retry_attempt
+            )
             print("📤 رفع على يوتيوب (public)...")
             video_youtube_id = _upload(youtube, upload_file, title_for_upload, final_description)
             recent_markers[marker] = video_youtube_id
             video_url = f"https://youtu.be/{video_youtube_id}"
             print(f"✅ تم النشر: {video_url}")
-
-            queue_utils.mark_clip_published(STATE_DIR, queue_id, clip_idx, video_url)
+            queue_utils.mark_clip_published(STATE_DIR, queue_id, clip_index, video_url)
             publish_quota.record_publish_success(STATE_DIR)
-
             if bot_token:
                 send_message(
                     bot_token, chat_id,
@@ -520,93 +529,164 @@ def run_daily_batch() -> None:
                     f"\"{batch['source_title']}\" ({clip['type']}):\n{video_url}",
                 )
             add_summary(chat_id, f"✅ نُشر: المقطع {done + 1}/{total} — {video_url}")
+            return "success"
 
-        except Exception as e:
-            safe_label = _safe_failure_label(e)
+        except Exception as exc:
+            safe_label = _safe_failure_label(exc)
             print(f"❌ تعذر إكمال المقطع ({safe_label}).")
-            current_status = queue_utils.get_clip_status(STATE_DIR, queue_id, clip_idx)
-
+            current = queue_utils.get_clip_state(STATE_DIR, queue_id, clip_index) or {}
+            current_status = current.get("status")
             if current_status == "published":
-                # لا نرجع حالة نشر مؤكدة إلى الفشل حتى لو تعذر تحديث عداد الحصة.
-                print("⚠️ النشر مؤكد؛ تعذر إكمال تحديث الحالة اليومية.")
                 add_summary(chat_id, f"✅ النشر مؤكد للمقطع {done + 1}/{total}.")
-                break
+                return "success"
 
-            if publish_quota.is_quota_error(e):
+            if publish_quota.is_quota_error(exc):
                 print("🚫 تم اكتشاف خطأ كوتا يوتيوب — إيقاف كل النشر لهذا اليوم.")
                 publish_quota.record_quota_hit(STATE_DIR)
-                result_status = queue_utils.mark_clip_failed(
-                    STATE_DIR, queue_id, clip_idx, failure_type=safe_label
-                )
-                if result_status == "skipped":
-                    message = (
-                        f"⏭️ تم تخطي المقطع {done + 1}/{total} بعد فشلين مؤكدين؛ "
-                        "سيتابع الطابور في التشغيل اليومي التالي."
+                if retry_attempt and prior_status in {"upload_unknown", "uploading"}:
+                    queue_utils.mark_clip_skipped(
+                        STATE_DIR, queue_id, clip_index, "ambiguous_retry_quota"
                     )
+                    message = "⏭️ تعذرت إعادة المقطع الملتبس ضمن حد YouTube؛ أُغلق بعد محاولة الإعادة."
                 else:
-                    message = (
-                        "⚠️ رُصد حد YouTube اليومي. سيتوقف النشر الآن، وستكون للمقطع "
-                        "محاولة واحدة في التشغيل اليومي التالي."
+                    result_status = queue_utils.mark_clip_failed(
+                        STATE_DIR, queue_id, clip_index, failure_type=safe_label
                     )
-                add_unpublished(
-                    chat_id,
-                    f"🆔 الطابور: {queue_id} — المقطع: {clip_idx + 1}\n{message}",
-                )
-                if bot_token:
-                    send_message(bot_token, chat_id, message)
-                add_summary(chat_id, message)
-                break
+                    message = (
+                        "⏭️ تم تخطي المقطع بعد فشلين مؤكدين؛ سيتابع الطابور لاحقًا."
+                        if result_status == "skipped"
+                        else "⚠️ رُصد حد YouTube اليومي؛ سيتوقف النشر الآن وستعاد محاولة المقطع لاحقًا."
+                    )
+                report_failed(batch, clip_index, message)
+                return "quota"
 
             upload_started = current_status in {"uploading", "upload_unknown"}
-            if upload_started and not _is_confirmed_upload_failure(e):
+            confirmed_failure = _is_confirmed_upload_failure(exc)
+            if retry_attempt:
+                if prior_status == "failed_retryable" and confirmed_failure:
+                    result_status = queue_utils.mark_clip_failed(
+                        STATE_DIR, queue_id, clip_index, failure_type=safe_label
+                    )
+                    message = (
+                        "⏭️ فشلت المحاولة الثانية المؤكدة؛ تم تخطي المقطع نهائيًا."
+                        if result_status == "skipped"
+                        else "⏸️ فشل المقطع؛ بقيت محاولة مؤجلة واحدة."
+                    )
+                elif upload_started and not confirmed_failure:
+                    queue_utils.mark_clip_skipped(
+                        STATE_DIR, queue_id, clip_index, "retry_result_unconfirmed"
+                    )
+                    message = "⏭️ بقيت نتيجة محاولة الإعادة غير مؤكدة؛ أُغلق المقطع دون تكرار رفعه."
+                elif prior_status in {"upload_unknown", "uploading"}:
+                    queue_utils.mark_clip_skipped(
+                        STATE_DIR, queue_id, clip_index, "ambiguous_retry_failed"
+                    )
+                    message = "⏭️ لم تنجح إعادة المقطع الملتبس؛ تم إنهاؤه ومتابعة الطابور."
+                else:
+                    result_status = queue_utils.mark_clip_failed(
+                        STATE_DIR, queue_id, clip_index, failure_type=safe_label
+                    )
+                    message = (
+                        "⏭️ فشلت المحاولة الثانية؛ تم تخطي المقطع نهائيًا."
+                        if result_status == "skipped"
+                        else "⏸️ فشل المقطع بشكل مؤكد؛ ستتاح له محاولة واحدة لاحقًا."
+                    )
+            elif upload_started and not confirmed_failure:
                 queue_utils.mark_clip_upload_unknown(
-                    STATE_DIR, queue_id, clip_idx, safe_label
+                    STATE_DIR, queue_id, clip_index, safe_label
                 )
                 message = (
-                    f"⚠️ نتيجة رفع المقطع {done + 1}/{total} غير مؤكدة. "
-                    "أُوقف الملف للحماية من التكرار؛ لن يُسقط المقطع أو يُعاد رفعه تلقائيًا."
-                )
-                add_unpublished(chat_id, f"🆔 الطابور: {queue_id} — المقطع: {clip_idx + 1}\n{message}")
-                if bot_token:
-                    send_message(bot_token, chat_id, message)
-                add_summary(chat_id, f"⚠️ غير مؤكد: المقطع {done + 1}/{total}")
-                break
-
-            result_status = queue_utils.mark_clip_failed(
-                STATE_DIR, queue_id, clip_idx, failure_type=safe_label
-            )
-            if result_status == "skipped":
-                message = (
-                    f"⏭️ تم تخطي المقطع {done + 1}/{total} بعد فشلين مؤكدين "
-                    f"({safe_label})؛ سيُتابع الطابور بالمقطع التالي."
+                    f"⏸️ نتيجة رفع المقطع {done + 1}/{total} غير مؤكدة؛ "
+                    "نُقل إلى قائمة الإعادة المؤقتة لليوم التالي، وسيستمر الملف بالمقاطع الباقية."
                 )
             else:
-                message = (
-                    f"⏸️ فشل نشر المقطع {done + 1}/{total} بشكل مؤكد ({safe_label}). "
-                    "ستكون له محاولة واحدة في التشغيل اليومي التالي."
+                result_status = queue_utils.mark_clip_failed(
+                    STATE_DIR, queue_id, clip_index, failure_type=safe_label
                 )
-            add_unpublished(
-                chat_id,
-                f"🆔 الطابور: {queue_id} — المقطع: {clip_idx + 1}\n{message}",
-            )
-            if bot_token:
-                send_message(bot_token, chat_id, message)
-            add_summary(chat_id, message)
-
+                message = (
+                    "⏭️ تم تخطي المقطع بعد فشلين مؤكدين؛ سيستمر الملف بالمقطع التالي."
+                    if result_status == "skipped"
+                    else f"⏸️ فشل المقطع {done + 1}/{total} بشكل مؤكد؛ أُضيف لقائمة الإعادة المؤقتة لليوم التالي."
+                )
+            report_failed(batch, clip_index, message)
+            return "failed"
         finally:
-            for f in os.listdir(DOWNLOAD_DIR):
+            for filename in os.listdir(DOWNLOAD_DIR):
                 try:
-                    os.remove(os.path.join(DOWNLOAD_DIR, f))
+                    os.remove(os.path.join(DOWNLOAD_DIR, filename))
                 except OSError:
                     pass
 
+    retry_successes = 0
+    retry_stopped = False
+    retry_processed = 0
+    if retry_candidates:
+        print(f"📥 مقاطع الإعادة المؤقتة المستحقة اليوم: {len(retry_candidates)}")
+        for candidate in retry_candidates:
+            if not publish_quota.can_publish(STATE_DIR, DAILY_LIMIT):
+                retry_stopped = True
+                break
+            result = process_clip(
+                candidate["queue_id"], candidate["clip_index"], retry_attempt=True
+            )
+            retry_processed += 1
+            if result == "success":
+                retry_successes += 1
+            if result == "quota":
+                retry_stopped = True
+                break
+
+    # إذا نجح أي مقطع مؤقت، ينتهي التشغيل قبل بدء ملف مصدر جديد. وإذا فشلت
+    # كل الإعادات، نختار ملف المصدر الأقدم المتبقي ونكمل مقاطعه العادية.
+    if retry_successes == 0 and not retry_stopped and retry_processed == len(retry_candidates):
+        refreshed_batches = queue_utils.list_active_batches(STATE_DIR)
+        source_batch = None
+        for candidate_batch in refreshed_batches:
+            pending = any(
+                clip.get("status") == "pending"
+                for clip in candidate_batch.get("clips", [])
+            )
+            if pending:
+                source_batch = candidate_batch
+                break
+            if any(
+                clip.get("status") in {"failed_retryable", "upload_unknown", "uploading"}
+                for clip in candidate_batch.get("clips", [])
+            ):
+                # قبل يوم الإعادة لا نتجاوز ملف FIFO؛ وبعد فشل كل إعادات
+                # اليوم نبدأ الملف التالي كما اختار المستخدم.
+                if not retry_candidates:
+                    break
+
+        if source_batch is not None:
+            queue_id = source_batch.get("queue_id", source_batch["video_id"])
+            source_path = source_batch["_path"]
+            source_snapshot = queue_utils.load_batch(source_path)
+            pending_indices = [
+                index for index, clip in enumerate(source_snapshot.get("clips", []))
+                if clip.get("status") == "pending"
+            ]
+            print(
+                f"📦 معالجة ملف المصدر {queue_id}؛ المقاطع العادية المتبقية: "
+                f"{len(pending_indices)}"
+            )
+            for clip_index in pending_indices:
+                if not publish_quota.can_publish(STATE_DIR, DAILY_LIMIT):
+                    print("🚫 تم الوصول للحد اليومي أثناء التشغيل. إيقاف بقية المقاطع.")
+                    break
+                result = process_clip(queue_id, clip_index, retry_attempt=False)
+                if result == "quota":
+                    break
+        elif not refreshed_batches:
+            print("✅ لا توجد مقاطع مصدر متبقية بعد إنهاء إعادة المحاولة المؤقتة.")
+
+    queue_utils.refresh_temporary_retry_queue(STATE_DIR, today)
     send_unpublished_reports()
     for chat_id, items in daily_summary.items():
         report = "📋 ملخص تشغيل Smart Long اليوم:\n\n" + "\n".join(items)
         for start in range(0, len(report), 3800):
             send_message(bot_token, chat_id, report[start:start + 3800])
     print("\n🎉 انتهى التشغيل اليومي لخط long-smart.")
-
 
 if __name__ == "__main__":
     sys.exit(run_daily_batch())

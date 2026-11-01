@@ -70,6 +70,29 @@ class LongSmartPipelineTests(unittest.TestCase):
         with open(out_path, "wb") as handle:
             handle.write(b"fixture only; never uploaded")
 
+    def save_queue(self, queue_id, clips, *, fifo_order, created_at):
+        queue_utils.save_new_batch(
+            state_dir=self.state_dir,
+            queue_id=queue_id,
+            request_key=f"123:{fifo_order}",
+            video_id=f"fixture-{queue_id}",
+            source_url=f"https://example.invalid/{queue_id}",
+            source_title=f"{queue_id} fixture",
+            chat_id=123,
+            clips=clips,
+            created_at=created_at,
+            fifo_order=fifo_order,
+        )
+
+    def make_retry_due(self, queue_id, indices):
+        path = os.path.join(self.state_dir, "long_smart_queue", f"{queue_id}.json")
+        batch = queue_utils.load_batch(path)
+        today = datetime.datetime.now(datetime.timezone.utc).date().isoformat()
+        for index in indices:
+            batch["clips"][index]["retry_after_date"] = today
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(batch, handle)
+
     def test_new_long_command_reports_every_queue_file_and_clip(self):
         clips = [
             {
@@ -264,8 +287,8 @@ class LongSmartPipelineTests(unittest.TestCase):
             )
         )
 
-    def test_confirmed_failure_gets_one_next_day_retry_then_skips_and_continues(self):
-        outcomes = [FakeHttpFailure(403), FakeHttpFailure(403), "confirmed-fixture-id"]
+    def test_confirmed_failure_defers_then_skips_after_retry_while_file_continues(self):
+        outcomes = [FakeHttpFailure(403), "same-day-success", FakeHttpFailure(403)]
         upload_calls = []
 
         def fake_upload(*args, **kwargs):
@@ -281,21 +304,15 @@ class LongSmartPipelineTests(unittest.TestCase):
             first_run = self.read_batch()
             self.assertEqual(first_run["clips"][0]["status"], "failed_retryable")
             self.assertEqual(first_run["clips"][0]["confirmed_failures"], 1)
-            self.assertEqual(len(upload_calls), 1)
+            self.assertEqual(first_run["clips"][1]["status"], "published")
+            self.assertEqual(len(upload_calls), 2)
 
             # A second invocation on the same UTC date must not retry the item.
             pipeline.run_daily_batch()
-            self.assertEqual(len(upload_calls), 1)
+            self.assertEqual(len(upload_calls), 2)
 
             # Simulate the next daily execution by making the stored due date today.
-            path = os.path.join(self.state_dir, "long_smart_queue", f"{self.queue_id}.json")
-            due_batch = self.read_batch()
-            due_batch["clips"][0]["retry_after_date"] = datetime.datetime.now(
-                datetime.timezone.utc
-            ).date().isoformat()
-            with open(path, "w", encoding="utf-8") as handle:
-                json.dump(due_batch, handle)
-
+            self.make_retry_due(self.queue_id, [0])
             pipeline.run_daily_batch()
 
         completed = self.read_batch()
@@ -304,24 +321,210 @@ class LongSmartPipelineTests(unittest.TestCase):
         self.assertEqual(completed["clips"][1]["status"], "published")
         self.assertEqual(len(upload_calls), 3)
 
-    def test_ambiguous_http_5xx_stops_and_is_never_retried_automatically(self):
+    def test_ambiguous_failure_is_deferred_continues_file_and_gets_one_next_day_retry(self):
+        outcomes = [FakeHttpFailure(500), "same-day-success", FakeHttpFailure(500)]
         upload_calls = []
 
         def fake_upload(*args, **kwargs):
             upload_calls.append(args)
-            raise FakeHttpFailure(500)
+            outcome = outcomes.pop(0)
+            if isinstance(outcome, Exception):
+                raise outcome
+            return outcome
 
         with patch.object(pipeline, "_download_clip_range", side_effect=self.fake_download), \
                 patch.object(pipeline, "_upload", side_effect=fake_upload):
             pipeline.run_daily_batch()
             self.assertEqual(self.read_batch()["clips"][0]["status"], "upload_unknown")
+            self.assertEqual(self.read_batch()["clips"][1]["status"], "published")
+            self.assertEqual(len(upload_calls), 2)
+            pipeline.run_daily_batch()
+            self.assertEqual(len(upload_calls), 2)
+            self.make_retry_due(self.queue_id, [0])
             pipeline.run_daily_batch()
 
         batch = self.read_batch()
-        self.assertEqual(batch["clips"][0]["status"], "upload_unknown")
-        self.assertEqual(batch["clips"][1]["status"], "pending")
-        self.assertEqual(len(upload_calls), 1)
+        self.assertEqual(batch["clips"][0]["status"], "skipped")
+        self.assertEqual(batch["clips"][0]["skip_reason"], "retry_result_unconfirmed")
+        self.assertEqual(batch["clips"][1]["status"], "published")
+        self.assertEqual(len(upload_calls), 3)
         self.assertNotIn("error", batch["clips"][0])
+
+    def test_ambiguous_retry_confirms_existing_request_marker_without_reupload(self):
+        outcomes = [FakeHttpFailure(500), "same-day-success"]
+        upload_calls = []
+
+        def fake_upload(*args, **kwargs):
+            upload_calls.append(args)
+            outcome = outcomes.pop(0)
+            if isinstance(outcome, Exception):
+                raise outcome
+            return outcome
+
+        with patch.object(pipeline, "_download_clip_range", side_effect=self.fake_download), \
+                patch.object(pipeline, "_upload", side_effect=fake_upload):
+            pipeline.run_daily_batch()
+            self.make_retry_due(self.queue_id, [0])
+            marker = pipeline.request_marker("long-smart", f"{self.queue_id}:0")
+            with patch.object(pipeline, "recent_request_markers", return_value={marker: "recovered-id"}):
+                pipeline.run_daily_batch()
+
+        batch = self.read_batch()
+        self.assertEqual(batch["clips"][0]["status"], "published")
+        self.assertEqual(batch["clips"][0]["youtube_url"], "https://youtu.be/recovered-id")
+        self.assertEqual(len(upload_calls), 2)
+
+    def test_interrupted_retry_is_not_reuploaded_when_marker_is_absent(self):
+        path = os.path.join(self.state_dir, "long_smart_queue", f"{self.queue_id}.json")
+        batch = self.read_batch()
+        yesterday = (datetime.datetime.now(datetime.timezone.utc).date() - datetime.timedelta(days=1)).isoformat()
+        batch["clips"][0].update({
+            "status": "uploading",
+            "retry_attempted": True,
+            "upload_started_date": yesterday,
+        })
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(batch, handle)
+
+        upload_calls = []
+        with patch.object(pipeline, "_download_clip_range", side_effect=self.fake_download), \
+                patch.object(pipeline, "_upload", side_effect=lambda *args, **kwargs: upload_calls.append(args) or "next-id"):
+            pipeline.run_daily_batch()
+
+        completed = self.read_batch()
+        self.assertEqual(completed["clips"][0]["status"], "skipped")
+        self.assertEqual(completed["clips"][0]["skip_reason"], "retry_interrupted_unconfirmed")
+        self.assertEqual(completed["clips"][1]["status"], "published")
+        self.assertEqual(len(upload_calls), 1)
+
+    def test_multiple_temporary_retries_run_first_and_mixed_result_blocks_next_file(self):
+        clips = [
+            {"start": index * 10, "end": (index + 1) * 10, "type": "long",
+             "title": f"clip {index + 1}", "description": "d"}
+            for index in range(8)
+        ]
+        self.save_queue(
+            self.queue_id, clips, fifo_order=10, created_at="2026-10-25T10:00:00+00:00"
+        )
+        self.save_queue(
+            "next-file",
+            [{"start": 0, "end": 10, "type": "long", "title": "next", "description": "d"}],
+            fifo_order=11,
+            created_at="2026-10-25T10:01:00+00:00",
+        )
+        outcomes = [FakeHttpFailure(403), FakeHttpFailure(500)] + [
+            f"same-day-{index}" for index in range(3, 9)
+        ] + ["retry-success", FakeHttpFailure(500)]
+        upload_calls = []
+
+        def fake_upload(*args, **kwargs):
+            upload_calls.append(args)
+            outcome = outcomes.pop(0)
+            if isinstance(outcome, Exception):
+                raise outcome
+            return outcome
+
+        with patch.object(pipeline, "_download_clip_range", side_effect=self.fake_download), \
+                patch.object(pipeline, "_upload", side_effect=fake_upload):
+            pipeline.run_daily_batch()
+            first = self.read_batch()
+            self.assertEqual(first["clips"][0]["status"], "failed_retryable")
+            self.assertEqual(first["clips"][1]["status"], "upload_unknown")
+            self.assertTrue(all(clip["status"] == "published" for clip in first["clips"][2:]))
+            temp_path = os.path.join(self.state_dir, queue_utils.TEMP_RETRY_QUEUE_FILE_NAME)
+            with open(temp_path, encoding="utf-8") as handle:
+                temp_queue = json.load(handle)
+            self.assertEqual([item["clip_index"] for item in temp_queue["clips"]], [0, 1])
+            self.make_retry_due(self.queue_id, [0, 1])
+            pipeline.run_daily_batch()
+
+        completed = self.read_batch()
+        next_path = os.path.join(self.state_dir, "long_smart_queue", "next-file.json")
+        next_batch = queue_utils.load_batch(next_path)
+        self.assertEqual(completed["clips"][0]["status"], "published")
+        self.assertEqual(completed["clips"][1]["status"], "skipped")
+        self.assertEqual(next_batch["clips"][0]["status"], "pending")
+        self.assertEqual(len(upload_calls), 10)
+
+    def test_total_retry_failure_skips_temp_clip_then_starts_next_source_file(self):
+        self.save_queue(
+            "next-file",
+            [{"start": 0, "end": 10, "type": "long", "title": "next", "description": "d"}],
+            fifo_order=11,
+            created_at="2026-10-25T10:01:00+00:00",
+        )
+        outcomes = [FakeHttpFailure(403), "same-day-success", FakeHttpFailure(403), "next-file-success"]
+        upload_calls = []
+
+        def fake_upload(*args, **kwargs):
+            upload_calls.append(args)
+            outcome = outcomes.pop(0)
+            if isinstance(outcome, Exception):
+                raise outcome
+            return outcome
+
+        with patch.object(pipeline, "_download_clip_range", side_effect=self.fake_download), \
+                patch.object(pipeline, "_upload", side_effect=fake_upload):
+            pipeline.run_daily_batch()
+            self.make_retry_due(self.queue_id, [0])
+            pipeline.run_daily_batch()
+
+        completed = self.read_batch()
+        next_path = os.path.join(self.state_dir, "long_smart_queue", "next-file.json")
+        next_batch = queue_utils.load_batch(next_path)
+        self.assertEqual(completed["clips"][0]["status"], "skipped")
+        self.assertEqual(completed["clips"][1]["status"], "published")
+        self.assertEqual(next_batch["clips"][0]["status"], "published")
+        self.assertEqual(len(upload_calls), 4)
+
+    def test_failed_due_retries_advance_past_a_later_due_future_retry_queue(self):
+        today = datetime.datetime.now(datetime.timezone.utc).date()
+        queue_utils.mark_clip_failed(
+            self.state_dir, self.queue_id, 0, failed_on=today
+        )
+        queue_utils.mark_clip_published(
+            self.state_dir, self.queue_id, 1, "https://youtu.be/already-done"
+        )
+        self.save_queue(
+            "due-retry",
+            [{"start": 0, "end": 10, "type": "long", "title": "retry", "description": "d"}],
+            fifo_order=11,
+            created_at="2026-10-25T10:01:00+00:00",
+        )
+        queue_utils.mark_clip_failed(
+            self.state_dir,
+            "due-retry",
+            0,
+            failed_on=today - datetime.timedelta(days=1),
+        )
+        self.save_queue(
+            "next-file",
+            [{"start": 0, "end": 10, "type": "long", "title": "next", "description": "d"}],
+            fifo_order=12,
+            created_at="2026-10-25T10:02:00+00:00",
+        )
+
+        upload_calls = []
+
+        def fake_upload(*args, **kwargs):
+            upload_calls.append(args)
+            if len(upload_calls) == 1:
+                raise FakeHttpFailure(403)
+            return "next-source-published"
+
+        with patch.object(pipeline, "_download_clip_range", side_effect=self.fake_download), \
+                patch.object(pipeline, "_upload", side_effect=fake_upload):
+            pipeline.run_daily_batch()
+
+        first = self.read_batch()
+        due_path = os.path.join(self.state_dir, "long_smart_queue", "due-retry.json")
+        due = queue_utils.load_batch(due_path)
+        next_path = os.path.join(self.state_dir, "long_smart_queue", "next-file.json")
+        next_batch = queue_utils.load_batch(next_path)
+        self.assertEqual(first["clips"][0]["status"], "failed_retryable")
+        self.assertEqual(due["clips"][0]["status"], "skipped")
+        self.assertEqual(next_batch["clips"][0]["status"], "published")
+        self.assertEqual(len(upload_calls), 2)
 
     def test_completed_queue_does_not_start_the_next_queue_in_same_run(self):
         queue_utils.save_new_batch(

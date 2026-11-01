@@ -48,7 +48,11 @@ class QueueUtilsTests(unittest.TestCase):
         self.assertEqual(batch["clips"][0]["retry_after_date"], "2026-10-27")
         self.assertNotIn("error", batch["clips"][0])
         self.assertIsNone(queue_utils.get_next_pending_index(batch, "2026-10-26"))
-        self.assertEqual(queue_utils.get_next_pending_index(batch, "2026-10-27"), 0)
+        self.assertIsNone(queue_utils.get_next_pending_index(batch, "2026-10-27"))
+        self.assertEqual(
+            queue_utils.list_temporary_retry_candidates(self.state_dir, "2026-10-27")[0]["clip_index"],
+            0,
+        )
 
     def test_second_confirmed_failure_skips_and_removes_batch_from_active_queue(self):
         path = self.save_batch()
@@ -69,7 +73,7 @@ class QueueUtilsTests(unittest.TestCase):
         self.assertEqual(queue_utils.list_active_batches(self.state_dir), [])
         self.assertEqual(queue_utils.batch_progress(batch), (1, 1))
 
-    def test_first_unresolved_clip_blocks_later_clips_until_retry_date(self):
+    def test_deferred_clip_does_not_block_later_source_clips(self):
         path = self.save_batch(clips=[
             {"start": 0, "end": 10, "type": "shorts", "title": "first", "description": "d"},
             {"start": 10, "end": 20, "type": "shorts", "title": "second", "description": "d"},
@@ -79,8 +83,8 @@ class QueueUtilsTests(unittest.TestCase):
         )
         batch = self.load(path)
 
-        self.assertIsNone(queue_utils.get_next_pending_index(batch, "2026-10-26"))
-        self.assertEqual(queue_utils.get_next_pending_index(batch, "2026-10-27"), 0)
+        self.assertEqual(queue_utils.get_next_pending_index(batch, "2026-10-26"), 1)
+        self.assertEqual(queue_utils.get_next_pending_index(batch, "2026-10-27"), 1)
 
         queue_utils.mark_clip_failed(
             self.state_dir, "q1", 0, failure_type="TimeoutError", failed_on="2026-10-27"
@@ -89,7 +93,7 @@ class QueueUtilsTests(unittest.TestCase):
         self.assertEqual(batch["clips"][0]["status"], "skipped")
         self.assertEqual(queue_utils.get_next_pending_index(batch, "2026-10-27"), 1)
 
-    def test_ambiguous_upload_remains_active_and_blocks_following_clip(self):
+    def test_ambiguous_upload_remains_active_and_later_source_clip_is_selectable(self):
         path = self.save_batch(clips=[
             {"start": 0, "end": 10, "type": "shorts", "title": "first", "description": "d"},
             {"start": 10, "end": 20, "type": "shorts", "title": "second", "description": "d"},
@@ -101,8 +105,55 @@ class QueueUtilsTests(unittest.TestCase):
         self.assertEqual(batch["clips"][0]["status"], "upload_unknown")
         self.assertEqual(batch["clips"][0]["unknown_reason"], "publish_result_unconfirmed")
         self.assertNotIn("error", batch["clips"][0])
-        self.assertEqual(queue_utils.get_next_pending_index(batch), 0)
+        self.assertEqual(queue_utils.get_next_pending_index(batch), 1)
         self.assertEqual(len(queue_utils.list_active_batches(self.state_dir)), 1)
+
+    def test_ambiguous_failure_is_deferred_until_the_next_utc_day(self):
+        path = self.save_batch()
+        queue_utils.mark_clip_uploading(self.state_dir, "q1", 0, started_on="2026-10-26")
+        queue_utils.mark_clip_upload_unknown(
+            self.state_dir, "q1", 0, "private details", failed_on="2026-10-26"
+        )
+
+        self.assertEqual(
+            queue_utils.list_temporary_retry_candidates(self.state_dir, "2026-10-26"), []
+        )
+        candidates = queue_utils.refresh_temporary_retry_queue(
+            self.state_dir, "2026-10-27"
+        )
+        self.assertEqual(candidates[0]["queue_id"], "q1")
+        self.assertEqual(candidates[0]["clip_index"], 0)
+        saved = os.path.join(self.state_dir, queue_utils.TEMP_RETRY_QUEUE_FILE_NAME)
+        with open(saved, encoding="utf-8") as handle:
+            data = json.load(handle)
+        self.assertEqual(data["date"], "2026-10-27")
+        self.assertEqual(data["clips"], candidates)
+        self.assertEqual(self.load(path)["clips"][0]["retry_after_date"], "2026-10-27")
+
+    def test_multiple_deferred_clips_are_listed_once_in_fifo_order_and_rebuilt(self):
+        path = self.save_batch(clips=[
+            {"start": 0, "end": 10, "type": "shorts", "title": "first", "description": "d"},
+            {"start": 10, "end": 20, "type": "shorts", "title": "second", "description": "d"},
+            {"start": 20, "end": 30, "type": "shorts", "title": "third", "description": "d"},
+        ])
+        queue_utils.mark_clip_failed(
+            self.state_dir, "q1", 0, failed_on="2026-10-26"
+        )
+        queue_utils.mark_clip_uploading(self.state_dir, "q1", 1, started_on="2026-10-26")
+        queue_utils.mark_clip_upload_unknown(
+            self.state_dir, "q1", 1, failed_on="2026-10-26"
+        )
+
+        candidates = queue_utils.refresh_temporary_retry_queue(
+            self.state_dir, "2026-10-27"
+        )
+        self.assertEqual([item["clip_index"] for item in candidates], [0, 1])
+        self.assertEqual(len({(item["queue_id"], item["clip_index"]) for item in candidates}), 2)
+
+        os.remove(os.path.join(self.state_dir, queue_utils.TEMP_RETRY_QUEUE_FILE_NAME))
+        rebuilt = queue_utils.refresh_temporary_retry_queue(self.state_dir, "2026-10-27")
+        self.assertEqual(rebuilt, candidates)
+        self.assertEqual(len(self.load(path)["clips"]), 3)
 
     def test_only_confirmed_youtube_success_removes_item_from_active_queue(self):
         path = self.save_batch()
@@ -133,6 +184,18 @@ class QueueUtilsTests(unittest.TestCase):
         )
         self.assertEqual(merged["status"], "published")
         self.assertEqual(merged["youtube_url"], "https://youtu.be/id")
+
+    def test_merge_does_not_reopen_a_retry_finalized_skip(self):
+        merged = queue_utils._merge_clip_state(
+            {
+                "status": "skipped",
+                "skip_reason": "retry_result_unconfirmed",
+                "retry_attempted": True,
+            },
+            {"status": "upload_unknown", "retry_attempted": False},
+        )
+        self.assertEqual(merged["status"], "skipped")
+        self.assertTrue(merged["retry_attempted"])
 
     def test_legacy_failure_is_migrated_without_persisting_raw_error(self):
         path = self.save_batch()

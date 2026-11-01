@@ -2,7 +2,7 @@ name: Smart Channel - Long-Smart Publisher
 
 on:
   schedule:
-    # يعالج ملف Queue نشطًا واحدًا وفق FIFO، ضمن حد يومي منفصل (افتراضيًا 8).
+    # يعالج الإعادات المؤقتة أولًا ثم ملف المصدر الأقدم، ضمن حد يومي منفصل.
     - cron: '30 4 * * *'   # 07:30 بتوقيت السعودية (UTC+3)
   workflow_dispatch: {}
 

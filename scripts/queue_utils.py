@@ -1,9 +1,9 @@
 """
 إدارة طوابير مقاطع long-smart.
 
-تُعالج الطوابير بترتيب الإدراج العالمي، مع إبقاء كل مقطع غير محسوم في مقدمة
-الطابور. الفشل المؤكد يسمح بمحاولة ثانية في يوم UTC التالي فقط؛ أما نتيجة الرفع
-الملتبسة فتبقى حاجزًا إلى أن تؤكد YouTube النشر أو تُحسم يدويًا.
+تُعالج الطوابير بترتيب الإدراج العالمي. تُرحّل الإخفاقات المؤكدة والنتائج
+الملتبسة إلى قائمة إعادة محاولة مؤقتة لليوم التالي، مع بقاء ملفات الطوابير
+المصدرية هي المرجع الدائم الذي يمكن منه إعادة بناء القائمة بعد أي انقطاع.
 """
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ import subprocess
 
 QUEUE_DIR_NAME = "long_smart_queue"
 QUOTA_FILE_NAME = "long_smart_quota.json"
+TEMP_RETRY_QUEUE_FILE_NAME = "long_smart_retry_queue.json"
 MAX_CLIPS_PER_FILE = 8
 MAX_CONFIRMED_FAILURES = 2
 
@@ -225,8 +226,25 @@ def _legacy_retry_metadata(data: dict, path: str) -> bool:
             if clip.get("unknown_reason") != "publish_result_unconfirmed":
                 clip["unknown_reason"] = "publish_result_unconfirmed"
                 changed = True
+            if not clip.get("retry_after_date"):
+                failed_on = _as_date(clip.get("last_failure_date")) or _utc_today()
+                clip["last_failure_date"] = failed_on.isoformat()
+                clip["retry_after_date"] = (failed_on + datetime.timedelta(days=1)).isoformat()
+                changed = True
             if clip.pop("error", None) is not None:
                 changed = True
+            continue
+        if clip.get("status") == "uploading" and not clip.get("upload_started_date"):
+            # حالة قديمة لا تحفظ وقت بدء الرفع؛ لا نعيد المحاولة في يوم الترحيل.
+            failed_on = _utc_today()
+            clip["status"] = "upload_unknown"
+            clip["unknown_reason"] = "publish_result_unconfirmed"
+            clip["last_failure_date"] = failed_on.isoformat()
+            clip["retry_after_date"] = (failed_on + datetime.timedelta(days=1)).isoformat()
+            clip["retry_attempted"] = False
+            if clip.pop("error", None) is not None:
+                changed = True
+            changed = True
             continue
         if clip.get("status") != "failed_retryable":
             continue
@@ -283,21 +301,68 @@ def list_active_batches(state_dir: str) -> list[dict]:
 
 
 def get_next_pending_index(batch: dict, today: datetime.date | str | None = None) -> int | None:
-    """يعيد أول مقطع غير محسوم؛ الفشل المؤكد لا يصبح متاحًا قبل يومه التالي."""
-    today_date = _utc_today(today)
+    """يعيد أول مقطع عادي؛ المقاطع المؤجلة تُعالج من ملف إعادة المحاولة أولًا."""
     for i, clip in enumerate(batch.get("clips", [])):
-        status = clip.get("status")
-        if status == "pending":
-            return i
-        if status == "failed_retryable":
-            retry_after = _as_date(clip.get("retry_after_date"))
-            if retry_after is not None and today_date >= retry_after:
-                return i
-            # لا نتجاوز عنصرًا أولويًا ينتظر موعد محاولته.
-            return None
-        if status in {"uploading", "upload_unknown"}:
+        if clip.get("status") == "pending":
             return i
     return None
+
+
+def list_temporary_retry_candidates(
+    state_dir: str,
+    today: datetime.date | str | None = None,
+    *,
+    due_only: bool = True,
+) -> list[dict]:
+    """يعيد المقاطع المؤجلة، مع خيار قصر النتيجة على ما استحق اليوم."""
+    today_date = _utc_today(today)
+    candidates = []
+    for batch in list_active_batches(state_dir):
+        queue_id = batch.get("queue_id") or batch.get("video_id")
+        for clip_index, clip in enumerate(batch.get("clips", [])):
+            status = clip.get("status")
+            retry_after = _as_date(clip.get("retry_after_date"))
+            if status == "uploading":
+                started = _as_date(clip.get("upload_started_date"))
+                retry_after = started + datetime.timedelta(days=1) if started else retry_after
+            elif status not in {"failed_retryable", "upload_unknown"}:
+                continue
+            if retry_after is None or (due_only and today_date < retry_after):
+                continue
+            candidates.append({
+                "queue_id": queue_id,
+                "clip_index": clip_index,
+                "status": status,
+                "retry_after_date": retry_after.isoformat(),
+                "retry_attempted": bool(clip.get("retry_attempted", False)),
+            })
+    return candidates
+
+
+def refresh_temporary_retry_queue(
+    state_dir: str,
+    today: datetime.date | str | None = None,
+) -> list[dict]:
+    """يحفظ فهرسًا ذريًا قابلًا لإعادة البناء من حالة ملفات المصدر الدائمة."""
+    today_date = _utc_today(today)
+    queued = list_temporary_retry_candidates(state_dir, today_date, due_only=False)
+    candidates = [
+        item for item in queued
+        if _as_date(item.get("retry_after_date")) is not None
+        and today_date >= _as_date(item.get("retry_after_date"))
+    ]
+    data = {
+        "version": 1,
+        "date": today_date.isoformat(),
+        "clips": queued,
+    }
+    os.makedirs(state_dir, exist_ok=True)
+    path = os.path.join(state_dir, TEMP_RETRY_QUEUE_FILE_NAME)
+    temp_path = f"{path}.tmp"
+    with open(temp_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    os.replace(temp_path, path)
+    return candidates
 
 
 def get_clip_status(state_dir: str, queue_id: str, clip_index: int) -> str | None:
@@ -309,22 +374,53 @@ def get_clip_status(state_dir: str, queue_id: str, clip_index: int) -> str | Non
         return None
 
 
-def mark_clip_uploading(state_dir: str, queue_id: str, clip_index: int) -> None:
+def get_clip_state(state_dir: str, queue_id: str, clip_index: int) -> dict | None:
     path = _queue_file(state_dir, queue_id)
-    data = _load_batch(path)
-    data["clips"][clip_index]["status"] = "uploading"
-    data["clips"][clip_index].pop("unknown_reason", None)
-    data["clips"][clip_index].pop("error", None)
-    _save_batch(path, data)
+    try:
+        return dict(_load_batch(path)["clips"][clip_index])
+    except (OSError, ValueError, KeyError, IndexError):
+        return None
 
 
-def mark_clip_upload_unknown(state_dir: str, queue_id: str, clip_index: int, error: str = "") -> None:
-    """يحفظ نتيجة رفع مجهولة دون حفظ نص استثناء قد يكشف المصدر أو بيانات شخصية."""
+def mark_clip_uploading(
+    state_dir: str,
+    queue_id: str,
+    clip_index: int,
+    *,
+    retry_attempt: bool = False,
+    started_on: datetime.date | str | None = None,
+) -> None:
     path = _queue_file(state_dir, queue_id)
     data = _load_batch(path)
     clip = data["clips"][clip_index]
+    clip["status"] = "uploading"
+    clip["upload_started_date"] = _utc_today(started_on).isoformat()
+    if retry_attempt:
+        clip["retry_attempted"] = True
+    clip.pop("unknown_reason", None)
+    clip.pop("error", None)
+    _save_batch(path, data)
+
+
+def mark_clip_upload_unknown(
+    state_dir: str,
+    queue_id: str,
+    clip_index: int,
+    error: str = "",
+    *,
+    failed_on: datetime.date | str | None = None,
+) -> None:
+    """يؤجل النتيجة الملتبسة ليوم UTC التالي دون حفظ تفاصيل حساسة."""
+    path = _queue_file(state_dir, queue_id)
+    data = _load_batch(path)
+    clip = data["clips"][clip_index]
+    failure_date = _utc_today(failed_on)
     clip["status"] = "upload_unknown"
     clip["unknown_reason"] = "publish_result_unconfirmed"
+    clip["last_failure_date"] = failure_date.isoformat()
+    clip["retry_after_date"] = (failure_date + datetime.timedelta(days=1)).isoformat()
+    clip["retry_attempted"] = False
+    clip.pop("upload_started_date", None)
     clip.pop("error", None)
     _save_batch(path, data)
 
@@ -336,6 +432,9 @@ def mark_clip_published(state_dir: str, queue_id: str, clip_index: int, youtube_
     clip["status"] = "published"
     clip["youtube_url"] = youtube_url
     clip.pop("unknown_reason", None)
+    clip.pop("retry_after_date", None)
+    clip.pop("upload_started_date", None)
+    clip.pop("retry_attempted", None)
     clip.pop("error", None)
     _save_batch(path, data)
 
@@ -365,6 +464,7 @@ def mark_clip_failed(
     clip["failure_type"] = safe_type or "confirmed_failure"
     clip.pop("error", None)
     clip.pop("unknown_reason", None)
+    clip.pop("upload_started_date", None)
 
     if failures >= MAX_CONFIRMED_FAILURES:
         clip["status"] = "skipped"
@@ -373,9 +473,31 @@ def mark_clip_failed(
     else:
         clip["status"] = "failed_retryable"
         clip["retry_after_date"] = (failure_date + datetime.timedelta(days=1)).isoformat()
+        clip["retry_attempted"] = False
         clip.pop("skip_reason", None)
     _save_batch(path, data)
     return clip["status"]
+
+
+def mark_clip_skipped(
+    state_dir: str,
+    queue_id: str,
+    clip_index: int,
+    reason: str,
+) -> None:
+    """ينهي مقطعًا بعد استنفاد محاولة إعادة المحاولة المؤقتة."""
+    path = _queue_file(state_dir, queue_id)
+    data = _load_batch(path)
+    clip = data["clips"][clip_index]
+    safe_reason = "".join(ch for ch in str(reason) if ch.isalnum() or ch in "_.-")[:60]
+    clip["status"] = "skipped"
+    clip["skip_reason"] = safe_reason or "retry_failed"
+    clip["retry_attempted"] = True
+    clip.pop("retry_after_date", None)
+    clip.pop("upload_started_date", None)
+    clip.pop("unknown_reason", None)
+    clip.pop("error", None)
+    _save_batch(path, data)
 
 
 def batch_progress(batch: dict) -> tuple[int, int]:
@@ -397,7 +519,13 @@ def _merge_clip_state(local_clip: dict, remote_clip: dict) -> dict:
     }
     local_status = local_clip.get("status", "pending")
     remote_status = remote_clip.get("status", "pending")
-    if rank.get(remote_status, 0) > rank.get(local_status, 0):
+    local_final_retry = local_status == "skipped" and bool(local_clip.get("retry_attempted"))
+    remote_final_retry = remote_status == "skipped" and bool(remote_clip.get("retry_attempted"))
+    if local_status == "published" or remote_status == "published":
+        chosen = local_clip if local_status == "published" else remote_clip
+    elif local_final_retry or remote_final_retry:
+        chosen = local_clip if local_final_retry else remote_clip
+    elif rank.get(remote_status, 0) > rank.get(local_status, 0):
         chosen = remote_clip
     elif rank.get(remote_status, 0) < rank.get(local_status, 0):
         chosen = local_clip
@@ -416,6 +544,7 @@ def _merge_clip_state(local_clip: dict, remote_clip: dict) -> dict:
     state_fields = (
         "status", "youtube_url", "confirmed_failures", "last_failure_date",
         "retry_after_date", "failure_type", "skip_reason", "unknown_reason", "error",
+        "upload_started_date", "retry_attempted",
     )
     for field in state_fields:
         if field in chosen:
@@ -430,6 +559,15 @@ def _merge_clip_state(local_clip: dict, remote_clip: dict) -> dict:
     ]
     if counts:
         merged["confirmed_failures"] = max(counts)
+    if local_clip.get("retry_attempted") or remote_clip.get("retry_attempted"):
+        merged["retry_attempted"] = True
+    dates = [
+        str(clip.get("upload_started_date"))
+        for clip in (local_clip, remote_clip)
+        if clip.get("upload_started_date")
+    ]
+    if dates:
+        merged["upload_started_date"] = max(dates)
     return merged
 
 
