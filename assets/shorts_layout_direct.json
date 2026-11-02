@@ -2,6 +2,6 @@
   "output": {"width": 864, "height": 1536},
   "main_video": {"x": 92, "y": 243, "width": 680, "height": 1130},
   "template_native": {"width": 864, "height": 1536},
-  "background": {"zoom": 1.08, "blur_sigma": 24, "brightness": -0.18, "saturation": 0.78},
+  "background": {"zoom": 1.08, "blur_sigma": 12, "brightness": -0.18, "saturation": 0.78},
   "video": {"codec": "libx264", "preset": "veryfast", "crf": 21, "audio_codec": "aac", "audio_bitrate": "192k"}
 }

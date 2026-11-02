@@ -84,6 +84,7 @@ class VideoCompositorTests(unittest.TestCase):
         with open(DIRECT_LAYOUT, encoding="utf-8") as handle:
             direct_layout = json.load(handle)
 
+        self.assertTrue(video_compositor._png_has_alpha(video_compositor.DEFAULT_TEMPLATE))
         self.assertEqual(long_layout["output"], direct_layout["output"])
         self.assertEqual(
             long_layout["main_video"],
@@ -98,9 +99,9 @@ class VideoCompositorTests(unittest.TestCase):
             0.787,
             places=3,
         )
-        self.assertEqual(long_layout["background"]["blur_sigma"], 25)
+        self.assertEqual(long_layout["background"]["blur_sigma"], 12)
         self.assertNotIn("zoom", long_layout["background"])
-        self.assertEqual(direct_layout["background"]["blur_sigma"], 24)
+        self.assertEqual(direct_layout["background"]["blur_sigma"], 12)
         self.assertEqual(direct_layout["background"]["zoom"], 1.08)
         self.assertGreater(
             direct_layout["main_video"]["height"], long_layout["main_video"]["height"]
@@ -161,10 +162,10 @@ class VideoCompositorTests(unittest.TestCase):
             self.assertIn("scale=680:1130:force_original_aspect_ratio=decrease", direct_graph)
             self.assertIn("pad=680:1130:(ow-iw)/2:(oh-ih)/2", direct_graph)
             self.assertIn("scale=934:1660:force_original_aspect_ratio=increase", direct_graph)
-            self.assertIn("gblur=sigma=24", direct_graph)
+            self.assertIn("gblur=sigma=12", direct_graph)
             self.assertIn("scale=800:450:force_original_aspect_ratio=decrease", long_graph)
             self.assertIn("scale=864:1536:force_original_aspect_ratio=increase", long_graph)
-            self.assertIn("gblur=sigma=25", long_graph)
+            self.assertIn("gblur=sigma=12", long_graph)
 
             for result in (direct_result, long_result):
                 video_stream = next(
