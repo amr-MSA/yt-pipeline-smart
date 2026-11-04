@@ -50,10 +50,24 @@ def _is_safe_url(url: str) -> bool:
         return False
 
 
+def _is_tiktok_app_download_promo(url: str) -> bool:
+    """يتجاهل رابط تنزيل TikTok Lite الذي يأتي ملحقاً برسائل مشاركة الفيديو."""
+    try:
+        parsed = urlsplit(url)
+        host = (parsed.hostname or "").lower().rstrip(".")
+        path = parsed.path.rstrip("/").lower()
+        return host in {"tiktok.com", "www.tiktok.com"} and path == "/tiktoklite"
+    except ValueError:
+        return False
+
+
 def extract_urls(text: str) -> list[str]:
     """يستخرج روابط HTTP(S) من أي منصة، مع إزالة punctuation المحيط."""
     urls = (_clean_url(match.group(0)) for match in GENERIC_URL_RE.finditer(text))
-    return [url for url in urls if _is_safe_url(url)]
+    return [
+        url for url in urls
+        if _is_safe_url(url) and not _is_tiktok_app_download_promo(url)
+    ]
 
 
 def extract_inline_title(text: str) -> str | None:

@@ -119,6 +119,19 @@ class TelegramFifoTests(unittest.TestCase):
         self.assertEqual(commands[0]["chat_id"], 123)
         self.assertEqual(commands[0]["message_id"], 456)
 
+    def test_extract_urls_ignores_tiktoklite_promo_but_keeps_video_links(self):
+        video_url = "https://www.tiktok.com/@demo/video/123"
+        text = (
+            f"{video_url} تتم مشاركة هذا المنشور عبر TikTok Lite. "
+            "نزّل التطبيق: https://www.tiktok.com/tiktoklite/?utm_source=telegram "
+            "https://example.com/tiktoklite"
+        )
+
+        self.assertEqual(
+            telegram_utils.extract_urls(text),
+            [video_url, "https://example.com/tiktoklite"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

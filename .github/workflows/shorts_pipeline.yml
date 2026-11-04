@@ -59,9 +59,9 @@ jobs:
           deno --version
           ffmpeg -version | head -n 1
 
-      - name: Verify yt-dlp EJS installation
+      - name: Verify yt-dlp EJS and TikTok impersonation dependencies
         run: |
-          python -c 'import importlib.metadata; import yt_dlp; print("yt-dlp=" + yt_dlp.version.__version__); print("yt-dlp-ejs=" + importlib.metadata.version("yt-dlp-ejs"))'
+          python -c 'import importlib.metadata; import yt_dlp; print("yt-dlp=" + yt_dlp.version.__version__); print("yt-dlp-ejs=" + importlib.metadata.version("yt-dlp-ejs")); print("curl-cffi=" + importlib.metadata.version("curl-cffi"))'
 
       - name: Run shorts pipeline
         working-directory: scripts
