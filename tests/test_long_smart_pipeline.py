@@ -291,6 +291,10 @@ class LongSmartPipelineTests(unittest.TestCase):
         batch = self.read_batch()
         batch["source_title"] = "source-only title"
         batch["clips"][0]["type"] = "shorts"
+        batch["clips"][0]["hashtags"] = [
+            "#تاريخ", "#قصة", "#معلومة", "#شورت", "#أسرار"
+        ]
+        batch["clips"][0]["keywords"] = ["تاريخ", "قصة قصيرة"]
         batch_path = os.path.join(
             self.state_dir, "long_smart_queue", f"{self.queue_id}.json"
         )
@@ -299,15 +303,21 @@ class LongSmartPipelineTests(unittest.TestCase):
 
         sent = []
         uploaded_titles = []
+        uploaded_metadata = []
 
-        def fake_upload(youtube, file_path, title, description):
+        def fake_upload(youtube, file_path, title, description, keywords=None):
             uploaded_titles.append(title)
+            uploaded_metadata.append((description, keywords))
             return f"published-{len(uploaded_titles)}"
 
         with patch.object(
             pipeline.fixed_meta,
             "build_final_title",
-            side_effect=lambda title: f"Clip title: {title}",
+            side_effect=lambda title, hashtags=None, include_shorts=False: (
+                f"Clip title: {title}"
+                + (f" {' '.join(hashtags)}" if hashtags else "")
+                + (" #Shorts" if include_shorts else "")
+            ),
         ), patch.object(
             pipeline, "send_message", side_effect=lambda token, chat, text: sent.append(text)
         ), patch.object(
@@ -319,8 +329,15 @@ class LongSmartPipelineTests(unittest.TestCase):
         ):
             pipeline.run_daily_batch()
 
-        expected_titles = ["Clip title: first #Shorts", "Clip title: second"]
+        expected_titles = [
+            "Clip title: first #تاريخ #قصة #معلومة #Shorts",
+            "Clip title: second",
+        ]
         self.assertEqual(uploaded_titles, expected_titles)
+        self.assertTrue(
+            uploaded_metadata[0][0].endswith("#شورت #أسرار\n\n#2-pipeline-test-0")
+        )
+        self.assertEqual(uploaded_metadata[0][1], ["تاريخ", "قصة قصيرة"])
         notices = [message for message in sent if message.startswith("✅ نُشر مقطع ")]
         self.assertEqual(len(notices), len(expected_titles))
         summary = next(

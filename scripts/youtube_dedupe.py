@@ -73,9 +73,18 @@ def recent_request_markers(youtube, limit: int = 10) -> dict[str, str]:
     return markers
 
 
-def append_request_marker(description: str, marker: str) -> str:
-    """Append a searchable, stable idempotency marker to a YouTube description."""
+def append_request_marker(
+    description: str,
+    marker: str,
+    *,
+    trailing_metadata: str = "",
+) -> str:
+    """Append trailing metadata and a searchable marker within YouTube's limit."""
     description = (description or "").rstrip()
     suffix = f"\n\n{marker}"
-    available = max(0, 4900 - len(suffix))
-    return description[:available].rstrip() + suffix
+    metadata = (trailing_metadata or "").strip()
+    metadata_limit = max(0, 4900 - len(suffix) - 2)
+    metadata = metadata[:metadata_limit].rstrip()
+    metadata_suffix = f"\n\n{metadata}" if metadata else ""
+    available = max(0, 4900 - len(suffix) - len(metadata_suffix))
+    return description[:available].rstrip() + metadata_suffix + suffix
