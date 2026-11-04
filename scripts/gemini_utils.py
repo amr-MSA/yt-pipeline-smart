@@ -54,6 +54,9 @@ SYSTEM_INSTRUCTIONS = """\
 - أعد 8 مقاطع على الأقل إن وُجدت موضوعات مكتملة كافية تحقق كل القواعد أعلاه.
 - إن لم توجد، أعد المتاح فقط، ولا تخترع مقاطع لتكملة العدد.
 - رتّب المقاطع حسب قوة الموضوع وقابليته للمشاهدة.
+- أضف لكل مقطع 6 إلى 8 هاشتاقات دقيقة ومرتبطة بمضمونه، مرتبة من الأقوى إلى الأقل أهمية.
+- أضف لكل مقطع 5 إلى 10 كلمات مفتاحية للبحث، من دون علامة #، ولا تكرر الهاشتاقات نفسها.
+- اكتب العنوان بلا هاشتاقات؛ تُرسل الهاشتاقات والكلمات المفتاحية في حقولها المنفصلة.
 
 صيغة الإخراج: JSON فقط، دون أي نص تمهيدي أو Markdown أو أسوار ```، بهذا الشكل تمامًا:
 {
@@ -63,7 +66,9 @@ SYSTEM_INSTRUCTIONS = """\
       "start": رقم بالثواني,
       "end": رقم بالثواني,
       "title": "عنوان جذاب مناسب ليوتيوب",
-      "description": "وصف مختصر للمقطع"
+      "description": "وصف مختصر للمقطع",
+      "hashtags": ["#هاشتاق1", "#هاشتاق2"],
+      "keywords": ["كلمة مفتاحية 1", "كلمة مفتاحية 2"]
     }
   ]
 }
@@ -120,11 +125,61 @@ def _snap_to_segments(start: float, end: float, segments: list[dict]) -> tuple[f
     )
 
 
+def _normalize_hashtags(value: object) -> list[str]:
+    """يرجع هاشتاقات صالحة ومرتبة، مع إزالة التكرار وتقييد حجمها."""
+    if isinstance(value, str):
+        items = re.findall(r"#[\w]+|[\w]+", value, flags=re.UNICODE)
+    elif isinstance(value, (list, tuple)):
+        items = value
+    else:
+        return []
+
+    hashtags = []
+    seen = set()
+    for item in items:
+        text = re.sub(r"^[#\s]+", "", str(item or "").strip())
+        text = re.sub(r"\s+", "_", text)
+        text = re.sub(r"[^\w]", "", text, flags=re.UNICODE).strip("_")[:24].strip("_")
+        if not text or text.casefold() in seen:
+            continue
+        seen.add(text.casefold())
+        hashtags.append(f"#{text}")
+        if len(hashtags) == 12:
+            break
+    return hashtags
+
+
+def _normalize_keywords(value: object) -> list[str]:
+    """ينظف كلمات البحث ويحافظ على ترتيبها ضمن حد YouTube الإجمالي للوسوم."""
+    if isinstance(value, str):
+        items = re.split(r"[,;\n]+", value)
+    elif isinstance(value, (list, tuple)):
+        items = value
+    else:
+        return []
+
+    keywords = []
+    seen = set()
+    for item in items:
+        keyword = " ".join(str(item or "").split()).lstrip("#").strip()
+        if not keyword or keyword.casefold() in seen:
+            continue
+        candidate = [*keywords, keyword]
+        if len(", ".join(candidate)) > 500:
+            break
+        seen.add(keyword.casefold())
+        keywords.append(keyword)
+        if len(keywords) == 20:
+            break
+    return keywords
+
+
 def suggest_clips(api_key: str, video_title: str, segments: list[dict]) -> list[dict]:
     """
     يرسل الترانسكريبت لجيمناي ويرجع قائمة من 8 قواميس أو أقل إن لم تتوفر موضوعات مكتملة:
     [{"type": "shorts"|"long", "start": float, "end": float,
-      "title": str, "description": str}, ...]
+      "title": str, "description": str, "hashtags": list[str],
+      "keywords": list[str]}, ...]
     """
     transcript_text = _build_transcript_text(segments)
 
@@ -194,6 +249,8 @@ def suggest_clips(api_key: str, video_title: str, segments: list[dict]) -> list[
                 "end": round(end, 2),
                 "title": (c.get("title") or "").strip() or "بدون عنوان",
                 "description": (c.get("description") or "").strip(),
+                "hashtags": _normalize_hashtags(c.get("hashtags")),
+                "keywords": _normalize_keywords(c.get("keywords")),
             }
         )
 

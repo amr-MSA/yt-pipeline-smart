@@ -14,6 +14,7 @@ FIXED_DESCRIPTION_PATH = os.path.join(PROJECT_DIR, "assets", "fixed_description.
 
 YOUTUBE_TITLE_MAX = 100
 YOUTUBE_DESCRIPTION_MAX = 4900
+TITLE_HASHTAG_COUNT = 3
 
 
 def _read_fixed(path: str) -> str:
@@ -23,8 +24,50 @@ def _read_fixed(path: str) -> str:
         return f.read().strip()
 
 
-def build_final_title(gemini_title: str) -> str:
+def format_hashtags(values: object) -> list[str]:
+    """وحّد صيغة الهاشتاقات وأزل التكرار دون تغيير ترتيبها."""
+    if isinstance(values, str):
+        items = re.findall(r"#[\w]+|[\w]+", values, flags=re.UNICODE)
+    elif isinstance(values, (list, tuple)):
+        items = values
+    else:
+        return []
+
+    hashtags = []
+    seen = set()
+    for item in items:
+        text = re.sub(r"^[#\s]+", "", str(item or "").strip())
+        text = re.sub(r"\s+", "_", text)
+        text = re.sub(r"[^\w]", "", text, flags=re.UNICODE).strip("_")[:24].strip("_")
+        if not text or text.casefold() in seen:
+            continue
+        seen.add(text.casefold())
+        hashtags.append(f"#{text}")
+        if len(hashtags) == 12:
+            break
+    return hashtags
+
+
+def build_final_title(
+    gemini_title: str,
+    hashtags: object = None,
+    *,
+    include_shorts: bool = False,
+) -> str:
     fixed = _read_fixed(FIXED_TITLE_PATH)
+    title_hashtags = format_hashtags(hashtags)[:TITLE_HASHTAG_COUNT]
+    if title_hashtags or include_shorts:
+        suffix_parts = [part for part in (fixed, *title_hashtags) if part]
+        if include_shorts and "#shorts" not in {part.casefold() for part in title_hashtags}:
+            suffix_parts.append("#Shorts")
+        suffix = " ".join(suffix_parts)
+        if len(suffix) > YOUTUBE_TITLE_MAX:
+            suffix = suffix[-YOUTUBE_TITLE_MAX:].lstrip()
+        title = str(gemini_title or "").strip()
+        title_room = max(0, YOUTUBE_TITLE_MAX - len(suffix) - (1 if title else 0))
+        prefix = title[:title_room].rstrip()
+        return " ".join(part for part in (prefix, suffix) if part)[:YOUTUBE_TITLE_MAX]
+
     if not fixed:
         return gemini_title[:YOUTUBE_TITLE_MAX]
     combined = f"{gemini_title} {fixed}".strip()

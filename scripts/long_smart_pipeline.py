@@ -6,8 +6,8 @@
 
 المرحلة أ) عند وصول أمر /long <رابط> جديد:
     1) يسحب الترانسكريبت (نص + توقيت) من يوتيوب (transcript_utils).
-    2) يرسله لجيمناي ليقترح بالضبط 8 مقاطع (نوع long/shorts، توقيت، عنوان، وصف)
-       بصيغة JSON (gemini_utils).
+    2) يرسله لجيمناي ليقترح مقاطع (نوع long/shorts، توقيت، عنوان، وصف، هاشتاقات،
+       وكلمات مفتاحية) بصيغة JSON (gemini_utils).
     3) يحفظ الـ 8 مقاطع في ملف طابور خاص بهذا الفيديو (queue_utils)، كلها
        بحالة "pending".
     4) لا يُنشر أي شيء فورًا في هذه المرحلة — النشر يتم في المرحلة ب فقط.
@@ -321,13 +321,45 @@ def _apply_shorts_template(raw_path: str, final_path: str) -> bool:
     return True
 
 
-def _upload(youtube, file_path: str, title: str, description: str) -> str:
+def _youtube_tags(keywords: object) -> list[str]:
+    """نظّف وسوم YouTube النصية وضمن حد 500 محرف إجماليًا."""
+    if isinstance(keywords, str):
+        values = [keywords]
+    elif isinstance(keywords, (list, tuple)):
+        values = keywords
+    else:
+        return []
+
+    tags = []
+    seen = set()
+    for value in values:
+        tag = " ".join(str(value or "").split()).lstrip("#").strip()[:100].rstrip()
+        if not tag or tag.casefold() in seen:
+            continue
+        if len(", ".join([*tags, tag])) > 500:
+            break
+        seen.add(tag.casefold())
+        tags.append(tag)
+    return tags
+
+
+def _upload(
+    youtube,
+    file_path: str,
+    title: str,
+    description: str,
+    keywords: object = None,
+) -> str:
+    snippet = {
+        "title": title[:100],
+        "description": description[:4900],
+        "categoryId": "22",
+    }
+    tags = _youtube_tags(keywords)
+    if tags:
+        snippet["tags"] = tags
     body = {
-        "snippet": {
-            "title": title[:100],
-            "description": description[:4900],
-            "categoryId": "22",
-        },
+        "snippet": snippet,
         "status": {"privacyStatus": "public"},
     }
     request = youtube.videos().insert(
@@ -499,16 +531,22 @@ def run_daily_batch() -> None:
                 merged = _apply_shorts_template(actual_raw, final_path)
                 upload_file = final_path if merged else actual_raw
 
-            final_title = fixed_meta.build_final_title(clip["title"])
+            all_hashtags = fixed_meta.format_hashtags(clip.get("hashtags"))
+            title_for_upload = fixed_meta.build_final_title(
+                clip["title"],
+                all_hashtags[:fixed_meta.TITLE_HASHTAG_COUNT],
+                include_shorts=clip["type"] == "shorts",
+            )
             final_description = append_request_marker(
                 fixed_meta.build_final_description(
                     clip["description"],
                     source_handle=batch.get("source_handle"),
                     source_url=batch.get("source_url"),
-                ), marker
-            )
-            title_for_upload = (
-                f"{final_title} #Shorts" if clip["type"] == "shorts" else final_title
+                ),
+                marker,
+                trailing_metadata=" ".join(
+                    all_hashtags[fixed_meta.TITLE_HASHTAG_COUNT:]
+                ),
             )
 
             # تحفظ حالة المحاولة قبل الشبكة؛ بعد الانقطاع نفحص علامة الطلب أولًا.
@@ -516,7 +554,13 @@ def run_daily_batch() -> None:
                 STATE_DIR, queue_id, clip_index, retry_attempt=retry_attempt
             )
             print("📤 رفع على يوتيوب (public)...")
-            video_youtube_id = _upload(youtube, upload_file, title_for_upload, final_description)
+            video_youtube_id = _upload(
+                youtube,
+                upload_file,
+                title_for_upload,
+                final_description,
+                keywords=clip.get("keywords"),
+            )
             recent_markers[marker] = video_youtube_id
             video_url = f"https://youtu.be/{video_youtube_id}"
             print(f"✅ تم النشر: {video_url}")
