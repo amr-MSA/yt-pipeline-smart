@@ -1,6 +1,9 @@
 """Telegram -> YouTube Shorts pipeline."""
 import os
+import json
+import math
 import sys
+import subprocess
 import traceback
 import time
 
@@ -36,16 +39,13 @@ STATE_DIR = os.path.join(PROJECT_DIR, "state")
 DOWNLOAD_DIR = os.path.join(PROJECT_DIR, "downloads_short")
 DIRECT_LAYOUT_PATH = os.path.join(PROJECT_DIR, "assets", "shorts_layout_direct.json")
 BOT_NAME = "shorts"
-CLIP_START = 0
-CLIP_END = 60
+FRAME_MAX_SECONDS = 180
 
 
 def download_clip(url: str, out_path: str) -> dict:
     ydl_opts = {
         "format": "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/best",
         "outtmpl": out_path,
-        "download_ranges": yt_dlp.utils.download_range_func(None, [(CLIP_START, CLIP_END)]),
-        "force_keyframes_at_cuts": True,
         "overwrites": True,
         "quiet": True,
         "noprogress": True,
@@ -58,6 +58,43 @@ def download_clip(url: str, out_path: str) -> dict:
             ydl_opts["cookiefile"] = cookie_path
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             return ydl.extract_info(url, download=True)
+
+
+def downloaded_duration(path: str) -> float:
+    """Read the actual downloaded media duration rather than trusting metadata."""
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "json", path],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"ffprobe لم يستطع قراءة مدة الملف: {result.stderr[-500:]}")
+    try:
+        duration = float(json.loads(result.stdout).get("format", {}).get("duration", 0))
+    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise RuntimeError("تعذر تحديد مدة الملف الذي تم تنزيله") from exc
+    if not math.isfinite(duration) or duration <= 0:
+        raise RuntimeError("مدة الملف الذي تم تنزيله غير صالحة")
+    return duration
+
+
+def prepare_upload_file(raw_path: str, final_path: str) -> tuple[str, float]:
+    """Frame videos under three minutes; upload longer direct-source videos unchanged."""
+    duration = downloaded_duration(raw_path)
+    if duration < FRAME_MAX_SECONDS:
+        print(f"🖼️ مدة الفيديو {duration:.1f}s؛ دمج قالب Shorts...")
+        apply_template(raw_path, final_path)
+        return final_path, duration
+    print(f"📼 مدة الفيديو {duration:.1f}s؛ رفع الملف الكامل بلا إطار.")
+    return raw_path, duration
+
+
+def format_duration(seconds: float) -> str:
+    total = int(round(seconds))
+    hours, remainder = divmod(total, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{hours}:{minutes:02}:{seconds:02}" if hours else f"{minutes}:{seconds:02}"
 
 
 def apply_template(raw_path: str, final_path: str) -> bool:
@@ -366,8 +403,7 @@ def main():
                 if candidates:
                     actual_raw = os.path.join(DOWNLOAD_DIR, candidates[0])
 
-            apply_template(actual_raw, final_path)
-            upload_file = final_path
+            upload_file, duration = prepare_upload_file(actual_raw, final_path)
 
             ledger[key]["stage"] = "uploading"
             save_message_ledger(STATE_DIR, BOT_NAME, ledger)
@@ -397,7 +433,7 @@ def main():
                 f"🆔 <b>رسالة الطلب:</b> {message_id}\n"
                 f"🎬 <b>المصدر:</b> {url}\n"
                 f"📝 <b>العنوان:</b> {title}\n"
-                f"⏱️ <b>المقطع:</b> {CLIP_END - CLIP_START} ثانية\n"
+                f"⏱️ <b>مدة الفيديو:</b> {format_duration(duration)}\n"
                 f"📺 <b>الفيديو:</b> {video_url}\n\n"
                 "🗑️ تم حذف رسالة الطلب بعد نجاح النشر.\n"
                 "ℹ️ لن يُعاد نشر نفس الرابط خلال 48 ساعة."

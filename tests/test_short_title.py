@@ -26,6 +26,31 @@ class ShortTitleTests(unittest.TestCase):
             "Original full title",
         )
 
+    def test_removes_facebook_engagement_counts_from_title_and_description(self):
+        raw_title = "84K views · 4.3K reactions | عنوان وصفي للمقطع"
+        info = {
+            "title": raw_title,
+            "fulltitle": raw_title,
+            "description": raw_title + "\nالنص الأصلي للمنشور",
+        }
+        self.assertEqual(
+            select_short_title(info, "https://www.facebook.com/share/v/abc/"),
+            "عنوان وصفي للمقطع",
+        )
+        combined = combine_original_text(info)
+        self.assertNotIn("84K views", combined)
+        self.assertNotIn("4.3K reactions", combined)
+        self.assertIn("النص الأصلي للمنشور", combined)
+
+    def test_engagement_count_without_a_real_title_uses_safe_default(self):
+        self.assertEqual(
+            select_short_title(
+                {"title": "84K views · 4.3K reactions"},
+                "https://www.facebook.com/share/v/abc/",
+            ),
+            "مقطع اليوم",
+        )
+
     def test_rejects_generated_generic_url_and_id_titles(self):
         cases = [
             "Video by el_mulhem", "Reel by account", "Photo by user", "Facebook video",

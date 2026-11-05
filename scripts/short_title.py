@@ -20,6 +20,33 @@ GENERIC_TITLES = {
 }
 _GENERATED_BY_TITLE = re.compile(r"^(?:video|reel|photo|image)\s+by\s+.+$", re.I)
 _URL_TITLE = re.compile(r"^(?:https?://|www\.)\S+$", re.I)
+_ENGAGEMENT_METRIC = re.compile(
+    r"\d+(?:[.,]\d+)?\s*[KMB]?\s*(?:views?|reactions?|likes?|comments?|shares?|plays?|"
+    r"مشاهدات?|تفاعلات?|إعجابات?|تعليقات?|مشاركات?)$",
+    re.I,
+)
+_ENGAGEMENT_SEPARATORS = re.compile(r"[·•|,/–—-]+")
+
+
+def _clean_engagement_prefix(value: str) -> str:
+    """Remove Facebook-style engagement counters before a pipe-delimited title."""
+    text = value.strip()
+    if "|" not in text:
+        metrics = [part.strip() for part in _ENGAGEMENT_SEPARATORS.split(text) if part.strip()]
+        if metrics and all(_ENGAGEMENT_METRIC.fullmatch(part) for part in metrics):
+            return ""
+        return text
+    prefix, remainder = text.split("|", 1)
+    metrics = [part.strip() for part in _ENGAGEMENT_SEPARATORS.split(prefix) if part.strip()]
+    if metrics and all(_ENGAGEMENT_METRIC.fullmatch(part) for part in metrics):
+        remainder = remainder.strip()
+        trailing_metrics = [
+            part.strip() for part in _ENGAGEMENT_SEPARATORS.split(remainder) if part.strip()
+        ]
+        if trailing_metrics and all(_ENGAGEMENT_METRIC.fullmatch(part) for part in trailing_metrics):
+            return ""
+        return remainder
+    return text
 
 
 def is_social_video(info: dict, source_url: str) -> bool:
@@ -38,13 +65,18 @@ def is_social_video(info: dict, source_url: str) -> bool:
 def _usable_title(value: object, identifier: str) -> str | None:
     if not isinstance(value, str):
         return None
-    title = " ".join(value.split())
+    title = " ".join(_clean_engagement_prefix(value).split())
     if not title:
         return None
     folded = title.casefold().strip(" .:-–_")
     if identifier and folded == identifier.casefold():
         return None
-    if folded in GENERIC_TITLES or _GENERATED_BY_TITLE.fullmatch(title) or _URL_TITLE.fullmatch(title):
+    if (
+        folded in GENERIC_TITLES
+        or _GENERATED_BY_TITLE.fullmatch(title)
+        or _URL_TITLE.fullmatch(title)
+        or _ENGAGEMENT_METRIC.fullmatch(title)
+    ):
         return None
     if re.fullmatch(r"[\w-]{6,}", title) and re.search(r"\d", title):
         return None
@@ -82,7 +114,9 @@ def combine_original_text(info: dict) -> str:
     for value in candidates:
         if not isinstance(value, str) or not value.strip():
             continue
-        text = value.strip()
+        text = _clean_engagement_prefix(value)
+        if not text:
+            continue
         if any(text in existing for existing in parts):
             continue
         # If a later, fuller field contains an earlier title, replace the shorter

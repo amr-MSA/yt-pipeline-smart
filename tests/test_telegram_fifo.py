@@ -67,6 +67,32 @@ class TelegramFifoTests(unittest.TestCase):
 
         self.assertEqual(links, [])
 
+    def test_plain_facebook_link_routes_to_direct_publish_without_gemini(self):
+        url = "https://www.facebook.com/share/v/fixture123/"
+        updates = [{
+            "update_id": 98800,
+            "message": {
+                "text": url,
+                "chat": {"id": 123},
+                "message_id": 600,
+                "date": 1793012400,
+            },
+        }]
+        with tempfile.TemporaryDirectory() as state_dir:
+            with (
+                patch.object(telegram_utils, "_fetch_updates", return_value=updates),
+                patch.object(telegram_utils, "load_smart_long_inbox", return_value={}),
+                patch.object(telegram_utils, "save_smart_long_inbox"),
+                patch.object(telegram_utils, "_acknowledge_updates"),
+            ):
+                links, commands = telegram_utils.fetch_all_new_messages(
+                    "unused-test-token", state_dir, "shorts"
+                )
+
+        self.assertEqual(len(links), 1)
+        self.assertEqual(links[0]["url"], url)
+        self.assertEqual(commands, [])
+
     def test_long_queue_report_with_source_url_is_not_reprocessed(self):
         updates = [{
             "update_id": 98766,
