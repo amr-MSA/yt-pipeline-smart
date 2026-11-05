@@ -33,11 +33,16 @@ import long_smart_pipeline
 import fixed_meta
 from short_title import combine_original_text, select_short_title
 from video_compositor import compose_vertical
+from one_time_dedupe_override import (
+    claim_duplicate_override,
+    consume_duplicate_override,
+)
 
 PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATE_DIR = os.path.join(PROJECT_DIR, "state")
 DOWNLOAD_DIR = os.path.join(PROJECT_DIR, "downloads_short")
 DIRECT_LAYOUT_PATH = os.path.join(PROJECT_DIR, "assets", "shorts_layout_direct.json")
+DEDUPE_EXCEPTIONS_PATH = os.path.join(STATE_DIR, "shorts_dedupe_exceptions.json")
 BOT_NAME = "shorts"
 FRAME_MAX_SECONDS = 180
 
@@ -95,6 +100,41 @@ def format_duration(seconds: float) -> str:
     hours, remainder = divmod(total, 3600)
     minutes, seconds = divmod(remainder, 60)
     return f"{hours}:{minutes:02}:{seconds:02}" if hours else f"{minutes}:{seconds:02}"
+
+
+def direct_source_duplicate_decision(
+    *,
+    canonical_url: str,
+    request_key: str,
+    chat_id: int,
+    message_id: int,
+    published_urls: dict,
+    ledger: dict,
+    exceptions_path: str = DEDUPE_EXCEPTIONS_PATH,
+    now: int | None = None,
+) -> tuple[dict | None, bool]:
+    """Return the prior publish record and whether this request claimed its exception."""
+    published_record = published_urls.get(canonical_url)
+    if not published_record:
+        for previous in ledger.values():
+            if (
+                previous.get("status") == "succeeded"
+                and canonicalize_url(previous.get("source_url", "")) == canonical_url
+            ):
+                published_record = previous
+                break
+    if not published_record:
+        return None, False
+
+    override_claimed = claim_duplicate_override(
+        exceptions_path,
+        canonical_url=canonical_url,
+        request_key=request_key,
+        chat_id=chat_id,
+        message_id=message_id,
+        now=now,
+    )
+    return published_record, override_claimed
 
 
 def apply_template(raw_path: str, final_path: str) -> bool:
@@ -334,16 +374,15 @@ def main():
         try:
             # حماية إضافية للرابط نفسه عند وصوله من رسالة Telegram ثانية أو
             # بصيغة YouTube مختلفة؛ marker وحده يحمي message_id فقط.
-            published_record = published_urls.get(canonical_url)
-            if not published_record:
-                for previous in ledger.values():
-                    if (
-                        previous.get("status") == "succeeded"
-                        and canonicalize_url(previous.get("source_url", "")) == canonical_url
-                    ):
-                        published_record = previous
-                        break
-            if published_record:
+            published_record, override_claimed = direct_source_duplicate_decision(
+                canonical_url=canonical_url,
+                request_key=key,
+                chat_id=chat_id,
+                message_id=message_id,
+                published_urls=published_urls,
+                ledger=ledger,
+            )
+            if published_record and not override_claimed:
                 previous_video_url = published_record.get("video_url")
                 if not previous_video_url and published_record.get("video_id"):
                     previous_video_url = f"https://youtu.be/{published_record['video_id']}"
@@ -365,6 +404,12 @@ def main():
                 if delete_message(bot_token, chat_id, message_id):
                     print(f"🗑️ حُذفت رسالة الرابط المكرر: {message_id}")
                 continue
+            if override_claimed:
+                print(
+                    "[SHORTS][DEDUPE_EXCEPTION] تم قبول الاستثناء لمرة واحدة "
+                    f"للطلب الجديد {key} فقط.",
+                    flush=True,
+                )
 
             youtube_existing_id = recent_markers.get(marker)
             if youtube_existing_id:
@@ -427,6 +472,23 @@ def main():
             save_message_ledger(STATE_DIR, BOT_NAME, ledger)
             record_published_url(STATE_DIR, BOT_NAME, url, video_id)
             published_urls = load_published_urls(STATE_DIR, BOT_NAME)
+            if override_claimed:
+                try:
+                    consumed = consume_duplicate_override(
+                        DEDUPE_EXCEPTIONS_PATH,
+                        canonical_url=canonical_url,
+                        request_key=key,
+                    )
+                except OSError:
+                    consumed = False
+                if consumed:
+                    print("[SHORTS][DEDUPE_EXCEPTION] تم استهلاك الاستثناء بعد نجاح الرفع.", flush=True)
+                else:
+                    print(
+                        "[SHORTS][DEDUPE_EXCEPTION] بقي الاستثناء مربوطًا بهذا الطلب؛ "
+                        "لن يسمح لطلب آخر بتجاوزه.",
+                        flush=True,
+                    )
 
             report = (
                 f"✅ <b>تم نشر الطلب بنجاح</b> ({idx}/{total})\n\n"
