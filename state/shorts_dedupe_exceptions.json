@@ -1,9 +1,12 @@
 {
   "https://www.facebook.com/share/v/1Hw3b2rpNc": {
+    "after_message_id": 156,
     "canonical_url": "https://www.facebook.com/share/v/1Hw3b2rpNc",
-    "status": "armed",
-    "expires_at": 1794505485,
     "chat_id": 6828354904,
-    "after_message_id": 156
+    "claimed_at": 1793987802,
+    "consumed_at": 1793987806,
+    "expires_at": 1794505485,
+    "request_key": "6828354904:168",
+    "status": "consumed"
   }
 }
