@@ -16,8 +16,8 @@
       "end": 6018.49,
       "title": "كيف أدت القرارات المفاجئة إلى خسارة التحالفات في اليمن؟",
       "description": "تشبيه تبسيطي يوضح تأثير التسرع في اتخاذ القرارات وحظر الحلفاء بشكل فجائي.",
-      "status": "pending",
-      "youtube_url": null
+      "status": "published",
+      "youtube_url": "https://youtu.be/-CdfsZFS5UE"
     },
     {
       "type": "shorts",
@@ -25,8 +25,13 @@
       "end": 6100.01,
       "title": "الاستعانة بالدول المجاورة بعد اشتداد الأزمة اليمنية",
       "description": "مناقشة محاولات حشد الدعم الخارجي من تركيا وباكستان ومصر بعد التعقد الميداني في اليمن.",
-      "status": "pending",
-      "youtube_url": null
+      "status": "failed_retryable",
+      "youtube_url": null,
+      "confirmed_failures": 1,
+      "last_failure_date": "2026-11-07",
+      "failure_type": "youtube_http_400",
+      "retry_after_date": "2026-11-08",
+      "retry_attempted": false
     }
   ]
 }

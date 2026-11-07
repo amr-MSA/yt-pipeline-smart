@@ -1,5 +1,13 @@
 {
   "version": 1,
-  "date": "2026-11-06",
-  "clips": []
+  "date": "2026-11-07",
+  "clips": [
+    {
+      "queue_id": "058f0cfa860d3531d2dbcce1",
+      "clip_index": 1,
+      "status": "failed_retryable",
+      "retry_after_date": "2026-11-08",
+      "retry_attempted": false
+    }
+  ]
 }
