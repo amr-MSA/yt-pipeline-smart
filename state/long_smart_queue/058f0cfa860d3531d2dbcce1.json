@@ -25,13 +25,11 @@
       "end": 6100.01,
       "title": "الاستعانة بالدول المجاورة بعد اشتداد الأزمة اليمنية",
       "description": "مناقشة محاولات حشد الدعم الخارجي من تركيا وباكستان ومصر بعد التعقد الميداني في اليمن.",
-      "status": "failed_retryable",
-      "youtube_url": null,
+      "status": "published",
+      "youtube_url": "https://youtu.be/57cksw5KnN8",
       "confirmed_failures": 1,
       "last_failure_date": "2026-11-07",
-      "failure_type": "youtube_http_400",
-      "retry_after_date": "2026-11-08",
-      "retry_attempted": false
+      "failure_type": "youtube_http_400"
     }
   ]
 }
