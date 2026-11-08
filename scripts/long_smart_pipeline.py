@@ -25,6 +25,7 @@
       assets/fixed_title.txt و assets/fixed_description.txt.
 """
 import datetime
+import html
 import os
 import sys
 import traceback
@@ -50,6 +51,8 @@ DAILY_LIMIT = 8  # حد نشر يومي منفصل خاص بخط long-smart فق
 TRANSCRIPT_CHUNK_CHARS = 45000
 QUEUE_REPORT_PREFIX = "📋 تقرير ملفات /long"
 QUEUE_REPORT_MAX_CHARS = 3500
+QUEUE_COMMAND_REPORT_PREFIX = "📋 تقرير طابور /long-Smart"
+QUEUE_COMMAND_REPORT_MAX_CHARS = 3500
 
 
 def _report_value(value: object, max_length: int | None = None) -> str:
@@ -159,6 +162,146 @@ def _send_queue_manifest_report(
     for index, body in enumerate(chunks, 1):
         heading = f"{QUEUE_REPORT_PREFIX} ({index}/{len(chunks)})"
         send_message(bot_token, chat_id, f"{heading}\n{body}")
+
+
+def _queue_report_status(clip: dict) -> str:
+    return str(clip.get("status") or "pending")
+
+
+def _queue_report_status_label(status: str) -> str:
+    return {
+        "pending": "بانتظار النشر",
+        "failed_retryable": "إعادة مجدولة",
+        "uploading": "بدء الرفع",
+        "upload_unknown": "نتيجة رفع غير محسومة",
+        "published": "منشور",
+        "skipped": "متخطّى",
+        "failed": "فشل نهائي",
+    }.get(status, "حالة غير معروفة")
+
+
+def _queue_report_html(value: object, max_length: int = 220) -> str:
+    return html.escape(_report_value(value, max_length), quote=True)
+
+
+def _send_queue_report(bot_token: str, chat_id: int) -> None:
+    """يرسل تقرير ملفات هذه المحادثة فقط، ولا يكشف طوابير محادثات أخرى."""
+    batches = [
+        batch for batch in queue_utils.list_all_batches(STATE_DIR)
+        if str(batch.get("chat_id")) == str(chat_id)
+    ]
+    active_statuses = {"pending", "failed_retryable", "uploading", "upload_unknown"}
+    terminal_statuses = {"published", "failed", "skipped"}
+    total_clips = 0
+    status_counts: dict[str, int] = {}
+    active_batches = 0
+    full_batches = 0
+    oversized_batches = 0
+
+    for batch in batches:
+        clips = batch.get("clips", [])
+        if any(_queue_report_status(clip) in active_statuses for clip in clips):
+            active_batches += 1
+        if len(clips) == queue_utils.MAX_CLIPS_PER_FILE:
+            full_batches += 1
+        elif len(clips) > queue_utils.MAX_CLIPS_PER_FILE:
+            oversized_batches += 1
+        total_clips += len(clips)
+        for clip in clips:
+            status = _queue_report_status(clip)
+            status_counts[status] = status_counts.get(status, 0) + 1
+
+    remaining = sum(
+        count for status, count in status_counts.items() if status in active_statuses
+    )
+    pending = status_counts.get("pending", 0)
+    retrying = status_counts.get("failed_retryable", 0)
+    uncertain = status_counts.get("uploading", 0) + status_counts.get("upload_unknown", 0)
+    published = status_counts.get("published", 0)
+    finished_without_publish = sum(
+        count for status, count in status_counts.items()
+        if status in terminal_statuses and status != "published"
+    )
+    completed_batches = len(batches) - active_batches
+
+    summary = "\n".join((
+        QUEUE_COMMAND_REPORT_PREFIX,
+        "<b>الملخص العام</b>",
+        f"📁 الملفات المحفوظة: <b>{len(batches)}</b> · النشطة: <b>{active_batches}</b> · المكتملة: <b>{completed_batches}</b>",
+        f"🎬 المقاطع المحفوظة: <b>{total_clips}</b> · المتبقية في الطابور: <b>{remaining}</b>",
+        f"⏳ بانتظار النشر: {pending} · 🔁 إعادة مجدولة: {retrying} · ⚠️ رفع غير محسوم/جارٍ: {uncertain}",
+        f"✅ منشورة: {published} · ⏭️ منتهية دون نشر: {finished_without_publish}",
+        f"📦 ملفات مكتملة السعة ({queue_utils.MAX_CLIPS_PER_FILE}/{queue_utils.MAX_CLIPS_PER_FILE}): <b>{full_batches}</b>",
+        *([f"⚠️ ملفات تتجاوز حد المقاطع: <b>{oversized_batches}</b>"] if oversized_batches else []),
+    ))
+    send_message(bot_token, chat_id, summary, parse_mode="HTML")
+
+    detail_blocks = ["<b>التفاصيل — مرتبة حسب FIFO</b>"]
+    if not batches:
+        detail_blocks.append("لا توجد ملفات طابور محفوظة لهذه المحادثة بعد.")
+    else:
+        for batch_number, batch in enumerate(batches, 1):
+            clips = batch.get("clips", [])
+            count = len(clips)
+            if count == queue_utils.MAX_CLIPS_PER_FILE:
+                capacity = "ممتلئ"
+            elif count > queue_utils.MAX_CLIPS_PER_FILE:
+                capacity = "يتجاوز الحد"
+            else:
+                capacity = "غير مكتمل"
+            filename = os.path.basename(batch.get("_path", "")) or f"{batch.get('queue_id', 'queue')}.json"
+            file_remaining = sum(
+                1 for clip in clips if _queue_report_status(clip) in active_statuses
+            )
+            file_published = sum(
+                1 for clip in clips if _queue_report_status(clip) == "published"
+            )
+            file_done = sum(
+                1 for clip in clips
+                if _queue_report_status(clip) in terminal_statuses
+                and _queue_report_status(clip) != "published"
+            )
+            source_title = batch.get("source_title") or batch.get("video_id") or "مصدر غير معروف"
+            detail_blocks.append(
+                f"📁 <b>{batch_number}/{len(batches)} · {capacity} · {count}/{queue_utils.MAX_CLIPS_PER_FILE} مقاطع</b>\n"
+                f"<code>{_queue_report_html(filename, 100)}</code>\n"
+                f"المصدر: {_queue_report_html(source_title, 140)}\n"
+                f"المتبقي: <b>{file_remaining}</b> · منشور: {file_published} · متخطّى/فاشل: {file_done}"
+            )
+            for clip_index, clip in enumerate(clips, 1):
+                status = _queue_report_status(clip)
+                clip_type = _queue_report_html(clip.get("type") or "—", 30)
+                start = _format_clip_timestamp(clip.get("start"))
+                end = _format_clip_timestamp(clip.get("end"))
+                title = _queue_report_html(clip.get("title") or "بدون عنوان", 180)
+                detail_blocks.append(
+                    f"<b>{clip_index}. {clip_type} · {start}–{end} · "
+                    f"{_queue_report_status_label(status)}</b>\n{title}"
+                )
+
+    body_limit = QUEUE_COMMAND_REPORT_MAX_CHARS - 90
+    chunks = _split_report_blocks(detail_blocks, body_limit)
+    for index, body in enumerate(chunks, 1):
+        heading = (
+            f"{QUEUE_COMMAND_REPORT_PREFIX} · التفاصيل "
+            f"({index}/{len(chunks)})"
+        )
+        send_message(bot_token, chat_id, f"{heading}\n{body}", parse_mode="HTML")
+
+
+def handle_queue_report_commands(bot_token: str, report_commands: list[dict]) -> None:
+    """ينفذ أوامر /تقرير بعد جلب رسائل Telegram الجديدة."""
+    for command in report_commands:
+        chat_id = command["chat_id"]
+        try:
+            _send_queue_report(bot_token, chat_id)
+        except Exception as exc:
+            print(f"⚠️ تعذر إعداد تقرير Long-Smart ({type(exc).__name__}).")
+            send_message(
+                bot_token,
+                chat_id,
+                "⚠️ تعذر إعداد تقرير طابور Long-Smart الآن؛ حاول مرة أخرى لاحقًا.",
+            )
 
 
 

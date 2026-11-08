@@ -285,19 +285,25 @@ def _legacy_retry_metadata(data: dict, path: str) -> bool:
     return changed
 
 
-def list_active_batches(state_dir: str) -> list[dict]:
-    """يرجع الملفات التي لا تزال تحتوي مقطعًا قابلًا للمعالجة أو غير محسوم."""
-    active = []
+def list_all_batches(state_dir: str) -> list[dict]:
+    """يرجع كل ملفات الطابور المحفوظة مرتبة بترتيب FIFO."""
+    batches = []
     for path in glob.glob(os.path.join(_queue_dir(state_dir), "*.json")):
         data = _load_batch(path)
         _legacy_retry_metadata(data, path)
-        if any(
-            c.get("status") in {"pending", "failed_retryable", "uploading", "upload_unknown"}
-            for c in data.get("clips", [])
-        ):
-            data["_path"] = path
-            active.append(data)
-    return sorted(active, key=_batch_order_key)
+        data["_path"] = path
+        batches.append(data)
+    return sorted(batches, key=_batch_order_key)
+
+
+def list_active_batches(state_dir: str) -> list[dict]:
+    """يرجع الملفات التي لا تزال تحتوي مقطعًا قابلًا للمعالجة أو غير محسوم."""
+    active_statuses = {"pending", "failed_retryable", "uploading", "upload_unknown"}
+    return [
+        batch
+        for batch in list_all_batches(state_dir)
+        if any(clip.get("status") in active_statuses for clip in batch.get("clips", []))
+    ]
 
 
 def get_next_pending_index(batch: dict, today: datetime.date | str | None = None) -> int | None:

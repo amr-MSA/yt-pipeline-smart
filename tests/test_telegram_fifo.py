@@ -35,14 +35,46 @@ class TelegramFifoTests(unittest.TestCase):
                     patch.object(telegram_utils, "save_smart_long_inbox"),
                     patch.object(telegram_utils, "_acknowledge_updates"),
                 ):
-                    links, commands = telegram_utils.fetch_all_new_messages(
+                    links, commands, reports = telegram_utils.fetch_all_new_messages(
                         "unused-test-token", state_dir, "shorts"
                     )
 
             self.assertEqual(links, [])
             self.assertEqual(len(commands), 1)
+            self.assertEqual(reports, [])
             self.assertEqual(commands[0]["url"], expected_url)
             self.assertEqual(commands[0]["text"], expected_url)
+
+    def test_queue_report_commands_are_separated_from_video_links(self):
+        command_texts = ["/تقرير", "/تقرير@demo_bot", "/report", "/report@demo_bot"]
+        updates = [
+            {
+                "update_id": 99000 + index,
+                "message": {
+                    "text": text,
+                    "chat": {"id": 123},
+                    "message_id": 700 + index,
+                    "date": 1793012500 + index,
+                },
+            }
+            for index, text in enumerate(command_texts)
+        ]
+        with tempfile.TemporaryDirectory() as state_dir:
+            with (
+                patch.object(telegram_utils, "_fetch_updates", return_value=updates),
+                patch.object(telegram_utils, "load_smart_long_inbox", return_value={}),
+                patch.object(telegram_utils, "save_smart_long_inbox"),
+                patch.object(telegram_utils, "_acknowledge_updates") as acknowledge,
+            ):
+                links, commands, reports = telegram_utils.fetch_all_new_messages(
+                    "unused-test-token", state_dir, "shorts"
+                )
+
+        self.assertEqual(links, [])
+        self.assertEqual(commands, [])
+        self.assertEqual([item["message_id"] for item in reports], [700, 701, 702, 703])
+        self.assertTrue(all(item["chat_id"] == 123 for item in reports))
+        acknowledge.assert_called_once_with(state_dir, "shorts", updates)
 
     def test_gemini_prefix_is_not_queued_as_a_direct_short_link(self):
         updates = [{
@@ -85,13 +117,14 @@ class TelegramFifoTests(unittest.TestCase):
                 patch.object(telegram_utils, "save_smart_long_inbox"),
                 patch.object(telegram_utils, "_acknowledge_updates"),
             ):
-                links, commands = telegram_utils.fetch_all_new_messages(
+                links, commands, reports = telegram_utils.fetch_all_new_messages(
                     "unused-test-token", state_dir, "shorts"
                 )
 
         self.assertEqual(len(links), 1)
         self.assertEqual(links[0]["url"], url)
         self.assertEqual(commands, [])
+        self.assertEqual(reports, [])
 
     def test_long_queue_report_with_source_url_is_not_reprocessed(self):
         updates = [{
@@ -110,12 +143,38 @@ class TelegramFifoTests(unittest.TestCase):
                 patch.object(telegram_utils, "save_smart_long_inbox"),
                 patch.object(telegram_utils, "_acknowledge_updates"),
             ):
-                links, commands = telegram_utils.fetch_all_new_messages(
+                links, commands, reports = telegram_utils.fetch_all_new_messages(
                     "unused-test-token", state_dir, "shorts"
                 )
 
         self.assertEqual(links, [])
         self.assertEqual(commands, [])
+        self.assertEqual(reports, [])
+
+    def test_new_queue_report_is_not_reprocessed_as_a_source_link(self):
+        updates = [{
+            "update_id": 98767,
+            "message": {
+                "text": "📋 تقرير طابور /long-Smart · التفاصيل (1/1) https://youtu.be/fixture123",
+                "chat": {"id": 123},
+                "message_id": 458,
+                "date": 1793012347,
+            },
+        }]
+        with tempfile.TemporaryDirectory() as state_dir:
+            with (
+                patch.object(telegram_utils, "_fetch_updates", return_value=updates),
+                patch.object(telegram_utils, "load_smart_long_inbox", return_value={}),
+                patch.object(telegram_utils, "save_smart_long_inbox"),
+                patch.object(telegram_utils, "_acknowledge_updates"),
+            ):
+                links, commands, reports = telegram_utils.fetch_all_new_messages(
+                    "unused-test-token", state_dir, "shorts"
+                )
+
+        self.assertEqual(links, [])
+        self.assertEqual(commands, [])
+        self.assertEqual(reports, [])
 
     def test_long_command_keeps_message_date_and_global_update_id(self):
         updates = [{
@@ -134,12 +193,13 @@ class TelegramFifoTests(unittest.TestCase):
                 patch.object(telegram_utils, "save_smart_long_inbox"),
                 patch.object(telegram_utils, "_acknowledge_updates"),
             ):
-                links, commands = telegram_utils.fetch_all_new_messages(
+                links, commands, reports = telegram_utils.fetch_all_new_messages(
                     "unused-test-token", state_dir, "shorts"
                 )
 
         self.assertEqual(links, [])
         self.assertEqual(len(commands), 1)
+        self.assertEqual(reports, [])
         self.assertEqual(commands[0]["date"], 1793012345)
         self.assertEqual(commands[0]["update_id"], 98765)
         self.assertEqual(commands[0]["chat_id"], 123)

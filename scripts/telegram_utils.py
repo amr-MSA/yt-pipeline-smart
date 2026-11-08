@@ -19,6 +19,7 @@ LONG_COMMAND_RE = re.compile(
     r"(https?://[^\s<>]+)",
     re.IGNORECASE,
 )
+QUEUE_REPORT_COMMAND_RE = re.compile(r"^/(?:تقرير|report)(?:@\w+)?$", re.IGNORECASE)
 TAKE_TITLE_COMMAND_RE = re.compile(r"^/take(?:@\w+)?$", re.IGNORECASE)
 DEFAULT_TITLE_COMMAND_RE = re.compile(r"^/d(?:@\w+)?$", re.IGNORECASE)
 CUSTOM_TITLE_COMMAND_RE = re.compile(
@@ -31,6 +32,7 @@ INLINE_TITLE_PREFIX_RE = re.compile(
 PIPELINE_REPORT_PREFIXES = (
     "📊 تقرير الدفعة",
     "📋 تقرير ملفات /long",
+    "📋 تقرير طابور /long-Smart",
     "✅ تم نشر الفيديو بنجاح:",
     "📊 تم قبول ",
 )
@@ -372,8 +374,10 @@ def fetch_new_links(
         key=lambda x: (x.get("date", 0), x.get("message_id", 0)),
     )
 
-def fetch_all_new_messages(bot_token: str, state_dir: str, bot_name: str) -> tuple[list[dict], list[dict]]:
-    """يجلب دفعة واحدة ويفرزها إلى روابط عادية وأوامر /long.
+def fetch_all_new_messages(
+    bot_token: str, state_dir: str, bot_name: str
+) -> tuple[list[dict], list[dict], list[dict]]:
+    """يجلب دفعة واحدة ويفرزها إلى روابط وأوامر /long وطلبات تقرير الطابور.
 
     أوامر Smart Long تُحفظ في Inbox ذري قبل تأكيد Telegram offset، ثم تُعاد
     في كل تشغيل حتى ينجح التحليل وإنشاء الطابور.
@@ -381,6 +385,7 @@ def fetch_all_new_messages(bot_token: str, state_dir: str, bot_name: str) -> tup
     updates = _fetch_updates(bot_token, state_dir, bot_name)
     links = []
     long_commands = []
+    report_commands = []
     smart_inbox = load_smart_long_inbox(state_dir)
 
     for update in updates:
@@ -388,6 +393,15 @@ def fetch_all_new_messages(bot_token: str, state_dir: str, bot_name: str) -> tup
         if not msg:
             continue
         text = msg.get("text") or msg.get("caption") or ""
+        if QUEUE_REPORT_COMMAND_RE.fullmatch(text.strip()):
+            report_commands.append(
+                {
+                    "chat_id": msg["chat"]["id"],
+                    "message_id": msg["message_id"],
+                    "update_id": int(update.get("update_id", 0)),
+                }
+            )
+            continue
         if is_pipeline_report(text):
             links = []
             long_commands = []
@@ -433,7 +447,7 @@ def fetch_all_new_messages(bot_token: str, state_dir: str, bot_name: str) -> tup
     # فسيعود الأمر في التشغيل التالي بدل أن يضيع بعد تحديث offset.
     save_smart_long_inbox(state_dir, smart_inbox)
     _acknowledge_updates(state_dir, bot_name, updates)
-    return links, list(smart_inbox.values())
+    return links, list(smart_inbox.values()), report_commands
 
 
 def _iter_messages(updates: list[dict]):
@@ -459,13 +473,22 @@ def _fetch_updates(bot_token: str, state_dir: str, bot_name: str) -> list[dict]:
     return updates
 
 
-def send_message(bot_token: str, chat_id: int, text: str) -> None:
+def send_message(
+    bot_token: str, chat_id: int, text: str, *, parse_mode: str | None = None
+) -> None:
     """يرسل رسالة نصية ولا يوقف السير إذا فشل الإشعار."""
     url = TELEGRAM_API.format(token=bot_token, method="sendMessage")
+    payload = {
+        "chat_id": chat_id,
+        "text": text,
+        "disable_web_page_preview": True,
+    }
+    if parse_mode:
+        payload["parse_mode"] = parse_mode
     try:
         requests.post(
             url,
-            json={"chat_id": chat_id, "text": text, "disable_web_page_preview": True},
+            json=payload,
             timeout=15,
         )
     except Exception:

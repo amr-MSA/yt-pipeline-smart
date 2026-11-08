@@ -239,7 +239,10 @@ def main():
     os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
     print("🔎 جاري فحص رسائل بوت شورتس الجديدة...")
-    links, long_commands = fetch_all_new_messages(bot_token, STATE_DIR, BOT_NAME)
+    links, long_commands, report_commands = fetch_all_new_messages(
+        bot_token, STATE_DIR, BOT_NAME
+    )
+    long_smart_pipeline.handle_queue_report_commands(bot_token, report_commands)
     manual_long_url = os.environ.get("MANUAL_LONG_URL", "").strip()
     if manual_long_url:
         manual_chat_id = int(os.environ.get("MANUAL_LONG_CHAT_ID", "6828354904"))

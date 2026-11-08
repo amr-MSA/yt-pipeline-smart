@@ -4,6 +4,7 @@ import os
 import sys
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -159,6 +160,97 @@ class LongSmartPipelineTests(unittest.TestCase):
                 for message in sent
             )
         )
+
+    def test_queue_report_summarizes_fifo_files_and_scopes_to_requesting_chat(self):
+        full_clips = [
+            {
+                "start": index * 10,
+                "end": (index + 1) * 10,
+                "type": "shorts",
+                "title": "A <b> unsafe & title" if index == 0 else f"clip {index + 1}",
+                "description": "fixture",
+            }
+            for index in range(8)
+        ]
+        queue_utils.save_new_batch(
+            state_dir=self.state_dir,
+            queue_id="full-queue",
+            request_key="999:1",
+            video_id="full-video",
+            source_url="https://example.invalid/full",
+            source_title="First source",
+            chat_id=999,
+            clips=full_clips,
+            created_at="2026-10-25T10:00:00+00:00",
+            fifo_order=1,
+        )
+        queue_utils.mark_clip_published(
+            self.state_dir, "full-queue", 0, "https://youtu.be/published"
+        )
+        queue_utils.save_new_batch(
+            state_dir=self.state_dir,
+            queue_id="completed-queue",
+            request_key="999:2",
+            video_id="completed-video",
+            source_url="https://example.invalid/completed",
+            source_title="Second source",
+            chat_id=999,
+            clips=[{
+                "start": 0,
+                "end": 10,
+                "type": "long",
+                "title": "already published",
+                "description": "fixture",
+            }],
+            created_at="2026-10-25T10:01:00+00:00",
+            fifo_order=2,
+        )
+        queue_utils.mark_clip_published(
+            self.state_dir, "completed-queue", 0, "https://youtu.be/completed"
+        )
+        queue_utils.save_new_batch(
+            state_dir=self.state_dir,
+            queue_id="private-other-chat",
+            request_key="1000:1",
+            video_id="private-video",
+            source_url="https://example.invalid/private",
+            source_title="Private other chat",
+            chat_id=1000,
+            clips=[{
+                "start": 0,
+                "end": 10,
+                "type": "long",
+                "title": "private title",
+                "description": "fixture",
+            }],
+            created_at="2026-10-25T10:02:00+00:00",
+            fifo_order=1,
+        )
+
+        with patch.object(pipeline, "STATE_DIR", self.state_dir), patch.object(
+            pipeline, "send_message"
+        ) as send:
+            pipeline._send_queue_report("test-token", 999)
+
+        messages = [call.args[2] for call in send.call_args_list]
+        report = "\n".join(messages)
+        self.assertIn("الملفات المحفوظة: <b>2</b>", messages[0])
+        self.assertIn("المتبقية في الطابور: <b>7</b>", messages[0])
+        self.assertIn("ملفات مكتملة السعة (8/8): <b>1</b>", messages[0])
+        self.assertLess(report.index("full-queue.json"), report.index("completed-queue.json"))
+        self.assertIn("A &lt;b&gt; unsafe &amp; title", report)
+        self.assertNotIn("private-other-chat", report)
+        self.assertNotIn("private title", report)
+        self.assertTrue(all(call.kwargs.get("parse_mode") == "HTML" for call in send.call_args_list))
+        self.assertTrue(
+            all(
+                pipeline._telegram_text_length(message)
+                <= pipeline.QUEUE_COMMAND_REPORT_MAX_CHARS
+                for message in messages
+            )
+        )
+        for message in messages:
+            ET.fromstring(f"<root>{message}</root>")
 
     def test_manifest_report_keeps_mixed_statuses_with_their_clips(self):
         sent = []
