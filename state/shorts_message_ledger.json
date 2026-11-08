@@ -169,5 +169,14 @@
     "source_url": "https://www.facebook.com/share/v/14xgUUr8SpU/",
     "video_id": "CS5UiInJqdk",
     "video_url": "https://youtu.be/CS5UiInJqdk"
+  },
+  "6828354904:184": {
+    "status": "succeeded",
+    "stage": "queue_created",
+    "chat_id": 6828354904,
+    "message_id": 184,
+    "source_url": "https://www.youtube.com/live/VBNDIeR67zU?si=4QknD_CbigN2iG_o",
+    "pipeline": "long-smart",
+    "delete_pending": false
   }
 }
