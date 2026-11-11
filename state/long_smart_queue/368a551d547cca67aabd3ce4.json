@@ -16,8 +16,12 @@
       "end": 7303.73,
       "title": "ما هي الخيارات المتبقية للحل السياسي في اليمن؟",
       "description": "استعراض الخيارات والوساطات المتاحة أمام الأطراف الإقليمية للوصول إلى اتفاق.",
-      "status": "pending",
-      "youtube_url": null
+      "status": "upload_unknown",
+      "youtube_url": null,
+      "unknown_reason": "publish_result_unconfirmed",
+      "last_failure_date": "2026-11-11",
+      "retry_after_date": "2026-11-12",
+      "retry_attempted": false
     }
   ]
 }
