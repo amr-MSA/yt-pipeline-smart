@@ -16,8 +16,8 @@
       "end": 7413.97,
       "title": "رسالة حاسمة لأبناء الجنوب: لا تتورطوا في معارك جديدة",
       "description": "تحذير لأبناء الجنوب من الانجرار خلف الوعود السياسية والدخول في معارك استنزافية جديدة.",
-      "status": "pending",
-      "youtube_url": null
+      "status": "published",
+      "youtube_url": "https://youtu.be/vtySn_Ge7wg"
     },
     {
       "type": "shorts",
@@ -25,8 +25,8 @@
       "end": 7509.45,
       "title": "كيف تُستغل القوى المحلية ثم يُتخلى عنها؟",
       "description": "توضيح لكيفية استخدام الأطراف السياسية والخارجية للشباب والقتلى ثم التخلي عنهم فور انتهاء المصلحة.",
-      "status": "pending",
-      "youtube_url": null
+      "status": "published",
+      "youtube_url": "https://youtu.be/TgFtm6Jvd40"
     },
     {
       "type": "shorts",
@@ -34,8 +34,8 @@
       "end": 7654.09,
       "title": "حقيقة الوعود بمنح الجنوبيين استفتاء تقرير المصير",
       "description": "كشف كواليس الوعود السياسية بإجراء استفتاء للجنوب مقابل المشاركة في المعارك.",
-      "status": "pending",
-      "youtube_url": null
+      "status": "published",
+      "youtube_url": "https://youtu.be/nPU3Axot49E"
     },
     {
       "type": "shorts",
@@ -43,8 +43,8 @@
       "end": 7721.21,
       "title": "هل الدعوة لإيقاف الحرب وحقن الدماء تطبيل؟",
       "description": "رد على من يتهمون كل من يدعو للحوار وحقن دماء اليمنيين بالتطبيل والانحياز.",
-      "status": "pending",
-      "youtube_url": null
+      "status": "published",
+      "youtube_url": "https://youtu.be/Rq4a9KYWyFk"
     },
     {
       "type": "shorts",
@@ -52,8 +52,8 @@
       "end": 7815.37,
       "title": "تجربة إقليم كيبك الكندي ودرس في تقرير المصير",
       "description": "استعراض تجربة الاستفتاءات الشعبية الحضارية لتقرير المصير في كندا ومقارنتها بالواقع العربي.",
-      "status": "pending",
-      "youtube_url": null
+      "status": "published",
+      "youtube_url": "https://youtu.be/d_XD1g4ndnI"
     },
     {
       "type": "shorts",
@@ -61,8 +61,8 @@
       "end": 7923.62,
       "title": "القضية الجنوبية ورفض فرض الوحدة بالسلاح",
       "description": "حديث حول القضية الجنوبية وضرورة التفاهم بين الشمال والجنوب بعيدًا عن لغة السلاح.",
-      "status": "pending",
-      "youtube_url": null
+      "status": "published",
+      "youtube_url": "https://youtu.be/qwFl4g9GgLM"
     },
     {
       "type": "shorts",
@@ -70,8 +70,8 @@
       "end": 8013.61,
       "title": "سر أغنية 'سر حبي فيك غامض' ودرس الجحود السياسي",
       "description": "ربط بين ذكريات أغنية حضرمية شهيرة ونكران التضحيات السياسية والميدانية.",
-      "status": "pending",
-      "youtube_url": null
+      "status": "published",
+      "youtube_url": "https://youtu.be/eniEpMZ1q7w"
     },
     {
       "type": "shorts",
@@ -79,8 +79,13 @@
       "end": 8075.34,
       "title": "دعوة لإيقاف حمام الدم بين أبناء اليمن الواحد",
       "description": "دعوة لإيقاف الصراع بين أبناء الشمال والجنوب واللجوء للحلول السلمية والتنظيمية.",
-      "status": "pending",
-      "youtube_url": null
+      "status": "failed_retryable",
+      "youtube_url": null,
+      "confirmed_failures": 1,
+      "last_failure_date": "2026-11-13",
+      "failure_type": "youtube_http_400",
+      "retry_after_date": "2026-11-14",
+      "retry_attempted": false
     }
   ]
 }
