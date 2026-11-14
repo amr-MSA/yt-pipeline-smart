@@ -79,13 +79,11 @@
       "end": 8075.34,
       "title": "دعوة لإيقاف حمام الدم بين أبناء اليمن الواحد",
       "description": "دعوة لإيقاف الصراع بين أبناء الشمال والجنوب واللجوء للحلول السلمية والتنظيمية.",
-      "status": "failed_retryable",
-      "youtube_url": null,
+      "status": "published",
+      "youtube_url": "https://youtu.be/T9dduEDUVsU",
       "confirmed_failures": 1,
       "last_failure_date": "2026-11-13",
-      "failure_type": "youtube_http_400",
-      "retry_after_date": "2026-11-14",
-      "retry_attempted": false
+      "failure_type": "youtube_http_400"
     }
   ]
 }
