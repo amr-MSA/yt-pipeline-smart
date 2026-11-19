@@ -1,5 +1,34 @@
 {
   "version": 1,
-  "date": "2026-11-18",
-  "clips": []
+  "date": "2026-11-19",
+  "clips": [
+    {
+      "queue_id": "3959f31426762e6725cca8d1",
+      "clip_index": 0,
+      "status": "failed_retryable",
+      "retry_after_date": "2026-11-20",
+      "retry_attempted": false
+    },
+    {
+      "queue_id": "3959f31426762e6725cca8d1",
+      "clip_index": 1,
+      "status": "failed_retryable",
+      "retry_after_date": "2026-11-20",
+      "retry_attempted": false
+    },
+    {
+      "queue_id": "3959f31426762e6725cca8d1",
+      "clip_index": 2,
+      "status": "failed_retryable",
+      "retry_after_date": "2026-11-20",
+      "retry_attempted": false
+    },
+    {
+      "queue_id": "3959f31426762e6725cca8d1",
+      "clip_index": 3,
+      "status": "failed_retryable",
+      "retry_after_date": "2026-11-20",
+      "retry_attempted": false
+    }
+  ]
 }

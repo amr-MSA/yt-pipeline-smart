@@ -18,8 +18,13 @@
       "end": 1848.76,
       "title": "تعاويذ الكراهية والتفريق في كتب السحر القذرة",
       "description": "استعراض لبعض النصوص والشركيات المكتوبة في كتب السحر لإحداث العداوة والبغضاء بين الناس.",
-      "status": "pending",
-      "youtube_url": null
+      "status": "failed_retryable",
+      "youtube_url": null,
+      "confirmed_failures": 1,
+      "last_failure_date": "2026-11-19",
+      "failure_type": "DownloadError",
+      "retry_after_date": "2026-11-20",
+      "retry_attempted": false
     },
     {
       "type": "shorts",
@@ -27,8 +32,13 @@
       "end": 2242.66,
       "title": "سحر الجلب بالقوة خطورة وأوهام السحرة",
       "description": "كشف طلاسم واستدعاءات الشياطين التي يلجأ إليها من يريد إرغام شخص على المحبة والزواج.",
-      "status": "pending",
-      "youtube_url": null
+      "status": "failed_retryable",
+      "youtube_url": null,
+      "confirmed_failures": 1,
+      "last_failure_date": "2026-11-19",
+      "failure_type": "DownloadError",
+      "retry_after_date": "2026-11-20",
+      "retry_attempted": false
     },
     {
       "type": "shorts",
@@ -36,8 +46,13 @@
       "end": 2449.55,
       "title": "من أبشع صور تدنيس القرآن لدى السحرة",
       "description": "توضيح الأساليب الإبليسية التي يمارسها الساحر بكتابة الآيات المقلوبة أو ربطها بالقاذورات إرضاءً للشيطان.",
-      "status": "pending",
-      "youtube_url": null
+      "status": "failed_retryable",
+      "youtube_url": null,
+      "confirmed_failures": 1,
+      "last_failure_date": "2026-11-19",
+      "failure_type": "DownloadError",
+      "retry_after_date": "2026-11-20",
+      "retry_attempted": false
     },
     {
       "type": "shorts",
@@ -45,8 +60,13 @@
       "end": 3142.47,
       "title": "سر دلالات أعداد العقد في أعمال السحرة",
       "description": "بيان المعاني والأعداد التي يحددها السحرة في كتبهم لكل نوع من أنواع السحر.",
-      "status": "pending",
-      "youtube_url": null
+      "status": "failed_retryable",
+      "youtube_url": null,
+      "confirmed_failures": 1,
+      "last_failure_date": "2026-11-19",
+      "failure_type": "DownloadError",
+      "retry_after_date": "2026-11-20",
+      "retry_attempted": false
     }
   ]
 }
