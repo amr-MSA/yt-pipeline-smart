@@ -72,13 +72,11 @@
       "end": 3727.81,
       "title": "تحدي لأدعياء قانون الجذب والعلاج بالطاقة: لماذا لا تجذبون الثروة لأنفسكم؟",
       "description": "مواجهة ساخرة وواقعية مع مدعي العلاج بالطاقة الحيوية وقانون الجذب وبيع الدورات الوهمية للناس.",
-      "status": "failed_retryable",
-      "youtube_url": null,
+      "status": "published",
+      "youtube_url": "https://youtu.be/gF21WgYY6Ps",
       "confirmed_failures": 1,
       "last_failure_date": "2026-11-21",
-      "failure_type": "youtube_http_400",
-      "retry_after_date": "2026-11-22",
-      "retry_attempted": false
+      "failure_type": "youtube_http_400"
     },
     {
       "type": "shorts",
@@ -86,13 +84,11 @@
       "end": 4111.72,
       "title": "لماذا يصر السحرة على أوقات معينة قبل الشروق والغروب؟",
       "description": "الشيخ صالح يوضح أسباب اختيار السحرة للوقت الذي تشرق فيه الشمس بين قرني شيطان للتقرب بالقرابين وتحديد علامات المشعوذ.",
-      "status": "failed_retryable",
-      "youtube_url": null,
+      "status": "published",
+      "youtube_url": "https://youtu.be/JoSyP1nnddw",
       "confirmed_failures": 1,
       "last_failure_date": "2026-11-21",
-      "failure_type": "youtube_http_400",
-      "retry_after_date": "2026-11-22",
-      "retry_attempted": false
+      "failure_type": "youtube_http_400"
     }
   ]
 }
