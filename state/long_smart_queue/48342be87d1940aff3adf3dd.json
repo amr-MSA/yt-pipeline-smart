@@ -36,8 +36,13 @@
         "الحرب على غزة",
         "معاناة الشتاء"
       ],
-      "status": "pending",
-      "youtube_url": null
+      "status": "failed_retryable",
+      "youtube_url": null,
+      "confirmed_failures": 1,
+      "last_failure_date": "2026-11-25",
+      "failure_type": "DownloadError",
+      "retry_after_date": "2026-11-26",
+      "retry_attempted": false
     },
     {
       "type": "shorts",
@@ -62,8 +67,13 @@
         "عبدالمجيد الزهراني",
         "قضايا التواصل الاجتماعي"
       ],
-      "status": "pending",
-      "youtube_url": null
+      "status": "failed_retryable",
+      "youtube_url": null,
+      "confirmed_failures": 1,
+      "last_failure_date": "2026-11-25",
+      "failure_type": "DownloadError",
+      "retry_after_date": "2026-11-26",
+      "retry_attempted": false
     },
     {
       "type": "shorts",
@@ -88,8 +98,13 @@
         "أخبار اليمن",
         "التسوية اليمنية"
       ],
-      "status": "pending",
-      "youtube_url": null
+      "status": "failed_retryable",
+      "youtube_url": null,
+      "confirmed_failures": 1,
+      "last_failure_date": "2026-11-25",
+      "failure_type": "DownloadError",
+      "retry_after_date": "2026-11-26",
+      "retry_attempted": false
     },
     {
       "type": "shorts",
@@ -114,8 +129,13 @@
         "قوات سورية اليمن",
         "التطورات العسكرية باليمن"
       ],
-      "status": "pending",
-      "youtube_url": null
+      "status": "failed_retryable",
+      "youtube_url": null,
+      "confirmed_failures": 1,
+      "last_failure_date": "2026-11-25",
+      "failure_type": "DownloadError",
+      "retry_after_date": "2026-11-26",
+      "retry_attempted": false
     },
     {
       "type": "shorts",
@@ -139,8 +159,13 @@
         "الإعلام السعودي",
         "الردود الوطنية"
       ],
-      "status": "pending",
-      "youtube_url": null
+      "status": "failed_retryable",
+      "youtube_url": null,
+      "confirmed_failures": 1,
+      "last_failure_date": "2026-11-25",
+      "failure_type": "DownloadError",
+      "retry_after_date": "2026-11-26",
+      "retry_attempted": false
     },
     {
       "type": "shorts",
@@ -164,8 +189,13 @@
         "تراجع الوطنية",
         "نزوة شيطان"
       ],
-      "status": "pending",
-      "youtube_url": null
+      "status": "failed_retryable",
+      "youtube_url": null,
+      "confirmed_failures": 1,
+      "last_failure_date": "2026-11-25",
+      "failure_type": "DownloadError",
+      "retry_after_date": "2026-11-26",
+      "retry_attempted": false
     },
     {
       "type": "shorts",
@@ -190,8 +220,13 @@
         "برواز كسوة الكعبة",
         "الكعبة بمكة"
       ],
-      "status": "pending",
-      "youtube_url": null
+      "status": "failed_retryable",
+      "youtube_url": null,
+      "confirmed_failures": 1,
+      "last_failure_date": "2026-11-25",
+      "failure_type": "DownloadError",
+      "retry_after_date": "2026-11-26",
+      "retry_attempted": false
     },
     {
       "type": "shorts",
@@ -215,8 +250,13 @@
         "كسوة الكعبة المشرفة هدية",
         "قطعة من الكعبة"
       ],
-      "status": "pending",
-      "youtube_url": null
+      "status": "failed_retryable",
+      "youtube_url": null,
+      "confirmed_failures": 1,
+      "last_failure_date": "2026-11-25",
+      "failure_type": "DownloadError",
+      "retry_after_date": "2026-11-26",
+      "retry_attempted": false
     }
   ]
 }

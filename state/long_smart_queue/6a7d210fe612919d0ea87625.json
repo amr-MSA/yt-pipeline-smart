@@ -18,13 +18,13 @@
       "end": 5000.42,
       "title": "حقيقة تصرفات الخادمات في البيوت: هل هي سحر أم خرافة؟",
       "description": "الشيخ صالح الزهراني يوضح أن بعض تصرفات العاملات المنزليات كخلط الشعر أو رش العدس ووضع العظام ليست سحراً بل معتقدات وخرافات شعبية.",
-      "status": "failed_retryable",
+      "status": "skipped",
       "youtube_url": null,
-      "confirmed_failures": 1,
-      "last_failure_date": "2026-11-24",
+      "confirmed_failures": 2,
+      "last_failure_date": "2026-11-25",
       "failure_type": "DownloadError",
-      "retry_after_date": "2026-11-25",
-      "retry_attempted": false
+      "retry_attempted": false,
+      "skip_reason": "confirmed_failure_after_retry"
     },
     {
       "type": "shorts",
@@ -32,13 +32,13 @@
       "end": 5082.48,
       "title": "كيف تعرف أن ما ببيتك ليس سحراً؟ قصة مضحكة مع إحدى السيدات",
       "description": "موقف طريف يرويه الشيخ صالح الزهراني مع امرأة تتوهم السحر، موضحاً أن علامات السحر الحقيقي تكون بتغير تام في المنزل والظروف.",
-      "status": "failed_retryable",
+      "status": "skipped",
       "youtube_url": null,
-      "confirmed_failures": 1,
-      "last_failure_date": "2026-11-24",
+      "confirmed_failures": 2,
+      "last_failure_date": "2026-11-25",
       "failure_type": "DownloadError",
-      "retry_after_date": "2026-11-25",
-      "retry_attempted": false
+      "retry_attempted": false,
+      "skip_reason": "confirmed_failure_after_retry"
     },
     {
       "type": "shorts",
@@ -46,13 +46,13 @@
       "end": 5148.69,
       "title": "دفن الشعر والأظافر.. هل هو سحر أم عادة شعبية؟",
       "description": "توضيح الفرق بين الاعتقاد الفقهي والشعبي بدفن الشعر والأظافر لحرمة جسد الإنسان، وبين السحر الحقيقي القائم على عقد الشعر بشكل محدد.",
-      "status": "failed_retryable",
+      "status": "skipped",
       "youtube_url": null,
-      "confirmed_failures": 1,
-      "last_failure_date": "2026-11-24",
+      "confirmed_failures": 2,
+      "last_failure_date": "2026-11-25",
       "failure_type": "DownloadError",
-      "retry_after_date": "2026-11-25",
-      "retry_attempted": false
+      "retry_attempted": false,
+      "skip_reason": "confirmed_failure_after_retry"
     },
     {
       "type": "shorts",
@@ -60,13 +60,13 @@
       "end": 5322.23,
       "title": "ماذا تفعل إذا شككت بوجود سحر أو عين في بيتك؟",
       "description": "الشيخ صالح الزهراني يقدم النصيحة الذهبية لمن يتوهم أو يشعر بالضرر أو السحر باللجوء الصادق والتضرع لله في الثلث الأخير من الليل.",
-      "status": "failed_retryable",
+      "status": "skipped",
       "youtube_url": null,
-      "confirmed_failures": 1,
-      "last_failure_date": "2026-11-24",
+      "confirmed_failures": 2,
+      "last_failure_date": "2026-11-25",
       "failure_type": "DownloadError",
-      "retry_after_date": "2026-11-25",
-      "retry_attempted": false
+      "retry_attempted": false,
+      "skip_reason": "confirmed_failure_after_retry"
     },
     {
       "type": "shorts",
@@ -74,13 +74,13 @@
       "end": 5354.02,
       "title": "قصة عجيبة لتفريج الهم وتيسير الرزق بالدعاء الصادق",
       "description": "قصة حقيقية يرويها الشيخ عن رجل ضاقت به أسباب الوظيفية، فاستجاب الله دعاءه بكلمة صادقة في اليوم التالي مباشرة.",
-      "status": "failed_retryable",
+      "status": "skipped",
       "youtube_url": null,
-      "confirmed_failures": 1,
-      "last_failure_date": "2026-11-24",
+      "confirmed_failures": 2,
+      "last_failure_date": "2026-11-25",
       "failure_type": "DownloadError",
-      "retry_after_date": "2026-11-25",
-      "retry_attempted": false
+      "retry_attempted": false,
+      "skip_reason": "confirmed_failure_after_retry"
     },
     {
       "type": "shorts",
@@ -88,13 +88,13 @@
       "end": 5411.36,
       "title": "قوة سورة الفاتحة والمعوذتين في الشفاء من الأمراض",
       "description": "الشيخ صالح الزهراني يتحدث عن أثر قراءة سورة الفاتحة والتدبر فيها والرقية بها وبالمعوذتين لشفاء المريض وإبطال الأذى.",
-      "status": "failed_retryable",
+      "status": "skipped",
       "youtube_url": null,
-      "confirmed_failures": 1,
-      "last_failure_date": "2026-11-24",
+      "confirmed_failures": 2,
+      "last_failure_date": "2026-11-25",
       "failure_type": "DownloadError",
-      "retry_after_date": "2026-11-25",
-      "retry_attempted": false
+      "retry_attempted": false,
+      "skip_reason": "confirmed_failure_after_retry"
     },
     {
       "type": "shorts",
@@ -102,13 +102,13 @@
       "end": 5479.3,
       "title": "طريقة تحصين النفس الصحيحة بأذكار الصباح والمساء",
       "description": "نصيحة مهمة بعدم الانشغال بالهاتف أو الناس أثناء قراءة أذكار الصباح والمساء للتحصين الكامل والابتعاد عن تعقيدات المشعوذين.",
-      "status": "failed_retryable",
+      "status": "skipped",
       "youtube_url": null,
-      "confirmed_failures": 1,
-      "last_failure_date": "2026-11-24",
+      "confirmed_failures": 2,
+      "last_failure_date": "2026-11-25",
       "failure_type": "DownloadError",
-      "retry_after_date": "2026-11-25",
-      "retry_attempted": false
+      "retry_attempted": false,
+      "skip_reason": "confirmed_failure_after_retry"
     },
     {
       "type": "shorts",
@@ -116,13 +116,13 @@
       "end": 5593.64,
       "title": "رسالة حاسمة لمن تعلقت قلوبهم بالسحرة والمشعوذين",
       "description": "نصيحة إيمانية مؤلفة للشيخ صالح الزهراني لكل من يطلب النفع أو دفع الضر من الكهنة والمشعوذين والتذكير بأن كل الأمور بيد الله وحده.",
-      "status": "failed_retryable",
+      "status": "skipped",
       "youtube_url": null,
-      "confirmed_failures": 1,
-      "last_failure_date": "2026-11-24",
+      "confirmed_failures": 2,
+      "last_failure_date": "2026-11-25",
       "failure_type": "DownloadError",
-      "retry_after_date": "2026-11-25",
-      "retry_attempted": false
+      "retry_attempted": false,
+      "skip_reason": "confirmed_failure_after_retry"
     }
   ]
 }
