@@ -1,61 +1,19 @@
 {
   "version": 1,
-  "date": "2026-11-25",
+  "date": "2026-11-26",
   "clips": [
     {
-      "queue_id": "48342be87d1940aff3adf3dd",
+      "queue_id": "f87bbf78dfe260dd76153259",
       "clip_index": 0,
       "status": "failed_retryable",
-      "retry_after_date": "2026-11-26",
+      "retry_after_date": "2026-11-27",
       "retry_attempted": false
     },
     {
-      "queue_id": "48342be87d1940aff3adf3dd",
+      "queue_id": "f87bbf78dfe260dd76153259",
       "clip_index": 1,
       "status": "failed_retryable",
-      "retry_after_date": "2026-11-26",
-      "retry_attempted": false
-    },
-    {
-      "queue_id": "48342be87d1940aff3adf3dd",
-      "clip_index": 2,
-      "status": "failed_retryable",
-      "retry_after_date": "2026-11-26",
-      "retry_attempted": false
-    },
-    {
-      "queue_id": "48342be87d1940aff3adf3dd",
-      "clip_index": 3,
-      "status": "failed_retryable",
-      "retry_after_date": "2026-11-26",
-      "retry_attempted": false
-    },
-    {
-      "queue_id": "48342be87d1940aff3adf3dd",
-      "clip_index": 4,
-      "status": "failed_retryable",
-      "retry_after_date": "2026-11-26",
-      "retry_attempted": false
-    },
-    {
-      "queue_id": "48342be87d1940aff3adf3dd",
-      "clip_index": 5,
-      "status": "failed_retryable",
-      "retry_after_date": "2026-11-26",
-      "retry_attempted": false
-    },
-    {
-      "queue_id": "48342be87d1940aff3adf3dd",
-      "clip_index": 6,
-      "status": "failed_retryable",
-      "retry_after_date": "2026-11-26",
-      "retry_attempted": false
-    },
-    {
-      "queue_id": "48342be87d1940aff3adf3dd",
-      "clip_index": 7,
-      "status": "failed_retryable",
-      "retry_after_date": "2026-11-26",
+      "retry_after_date": "2026-11-27",
       "retry_attempted": false
     }
   ]

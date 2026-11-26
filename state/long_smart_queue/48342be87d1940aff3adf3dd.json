@@ -36,13 +36,13 @@
         "الحرب على غزة",
         "معاناة الشتاء"
       ],
-      "status": "failed_retryable",
+      "status": "skipped",
       "youtube_url": null,
-      "confirmed_failures": 1,
-      "last_failure_date": "2026-11-25",
+      "confirmed_failures": 2,
+      "last_failure_date": "2026-11-26",
       "failure_type": "DownloadError",
-      "retry_after_date": "2026-11-26",
-      "retry_attempted": false
+      "retry_attempted": false,
+      "skip_reason": "confirmed_failure_after_retry"
     },
     {
       "type": "shorts",
@@ -67,13 +67,13 @@
         "عبدالمجيد الزهراني",
         "قضايا التواصل الاجتماعي"
       ],
-      "status": "failed_retryable",
+      "status": "skipped",
       "youtube_url": null,
-      "confirmed_failures": 1,
-      "last_failure_date": "2026-11-25",
+      "confirmed_failures": 2,
+      "last_failure_date": "2026-11-26",
       "failure_type": "DownloadError",
-      "retry_after_date": "2026-11-26",
-      "retry_attempted": false
+      "retry_attempted": false,
+      "skip_reason": "confirmed_failure_after_retry"
     },
     {
       "type": "shorts",
@@ -98,13 +98,13 @@
         "أخبار اليمن",
         "التسوية اليمنية"
       ],
-      "status": "failed_retryable",
+      "status": "skipped",
       "youtube_url": null,
-      "confirmed_failures": 1,
-      "last_failure_date": "2026-11-25",
+      "confirmed_failures": 2,
+      "last_failure_date": "2026-11-26",
       "failure_type": "DownloadError",
-      "retry_after_date": "2026-11-26",
-      "retry_attempted": false
+      "retry_attempted": false,
+      "skip_reason": "confirmed_failure_after_retry"
     },
     {
       "type": "shorts",
@@ -129,13 +129,13 @@
         "قوات سورية اليمن",
         "التطورات العسكرية باليمن"
       ],
-      "status": "failed_retryable",
+      "status": "skipped",
       "youtube_url": null,
-      "confirmed_failures": 1,
-      "last_failure_date": "2026-11-25",
+      "confirmed_failures": 2,
+      "last_failure_date": "2026-11-26",
       "failure_type": "DownloadError",
-      "retry_after_date": "2026-11-26",
-      "retry_attempted": false
+      "retry_attempted": false,
+      "skip_reason": "confirmed_failure_after_retry"
     },
     {
       "type": "shorts",
@@ -159,13 +159,13 @@
         "الإعلام السعودي",
         "الردود الوطنية"
       ],
-      "status": "failed_retryable",
+      "status": "skipped",
       "youtube_url": null,
-      "confirmed_failures": 1,
-      "last_failure_date": "2026-11-25",
+      "confirmed_failures": 2,
+      "last_failure_date": "2026-11-26",
       "failure_type": "DownloadError",
-      "retry_after_date": "2026-11-26",
-      "retry_attempted": false
+      "retry_attempted": false,
+      "skip_reason": "confirmed_failure_after_retry"
     },
     {
       "type": "shorts",
@@ -189,13 +189,13 @@
         "تراجع الوطنية",
         "نزوة شيطان"
       ],
-      "status": "failed_retryable",
+      "status": "skipped",
       "youtube_url": null,
-      "confirmed_failures": 1,
-      "last_failure_date": "2026-11-25",
+      "confirmed_failures": 2,
+      "last_failure_date": "2026-11-26",
       "failure_type": "DownloadError",
-      "retry_after_date": "2026-11-26",
-      "retry_attempted": false
+      "retry_attempted": false,
+      "skip_reason": "confirmed_failure_after_retry"
     },
     {
       "type": "shorts",
@@ -220,13 +220,13 @@
         "برواز كسوة الكعبة",
         "الكعبة بمكة"
       ],
-      "status": "failed_retryable",
+      "status": "skipped",
       "youtube_url": null,
-      "confirmed_failures": 1,
-      "last_failure_date": "2026-11-25",
+      "confirmed_failures": 2,
+      "last_failure_date": "2026-11-26",
       "failure_type": "DownloadError",
-      "retry_after_date": "2026-11-26",
-      "retry_attempted": false
+      "retry_attempted": false,
+      "skip_reason": "confirmed_failure_after_retry"
     },
     {
       "type": "shorts",
@@ -250,13 +250,13 @@
         "كسوة الكعبة المشرفة هدية",
         "قطعة من الكعبة"
       ],
-      "status": "failed_retryable",
+      "status": "skipped",
       "youtube_url": null,
-      "confirmed_failures": 1,
-      "last_failure_date": "2026-11-25",
+      "confirmed_failures": 2,
+      "last_failure_date": "2026-11-26",
       "failure_type": "DownloadError",
-      "retry_after_date": "2026-11-26",
-      "retry_attempted": false
+      "retry_attempted": false,
+      "skip_reason": "confirmed_failure_after_retry"
     }
   ]
 }

@@ -34,8 +34,13 @@
         "التبرك بكسوة الكعبة",
         "الفنانين وكسوة الكعبة"
       ],
-      "status": "pending",
-      "youtube_url": null
+      "status": "failed_retryable",
+      "youtube_url": null,
+      "confirmed_failures": 1,
+      "last_failure_date": "2026-11-26",
+      "failure_type": "DownloadError",
+      "retry_after_date": "2026-11-27",
+      "retry_attempted": false
     },
     {
       "type": "shorts",
@@ -60,8 +65,13 @@
         "قضايا مزدوجة السعودية",
         "جرائم الحرب اليمن"
       ],
-      "status": "pending",
-      "youtube_url": null
+      "status": "failed_retryable",
+      "youtube_url": null,
+      "confirmed_failures": 1,
+      "last_failure_date": "2026-11-26",
+      "failure_type": "DownloadError",
+      "retry_after_date": "2026-11-27",
+      "retry_attempted": false
     }
   ]
 }
