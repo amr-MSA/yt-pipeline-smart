@@ -36,8 +36,13 @@
         "عمر بن عبد العزيز",
         "العمالة اليمنية"
       ],
-      "status": "pending",
-      "youtube_url": null
+      "status": "failed_retryable",
+      "youtube_url": null,
+      "confirmed_failures": 1,
+      "last_failure_date": "2026-11-27",
+      "failure_type": "DownloadError",
+      "retry_after_date": "2026-11-28",
+      "retry_attempted": false
     },
     {
       "type": "shorts",
@@ -62,8 +67,13 @@
         "كارثة اليمن الإنسانية",
         "حقوق المدنيين"
       ],
-      "status": "pending",
-      "youtube_url": null
+      "status": "failed_retryable",
+      "youtube_url": null,
+      "confirmed_failures": 1,
+      "last_failure_date": "2026-11-27",
+      "failure_type": "DownloadError",
+      "retry_after_date": "2026-11-28",
+      "retry_attempted": false
     },
     {
       "type": "shorts",
@@ -87,8 +97,13 @@
         "العلاقات اليمنية السعودية",
         "الشعب اليمني"
       ],
-      "status": "pending",
-      "youtube_url": null
+      "status": "failed_retryable",
+      "youtube_url": null,
+      "confirmed_failures": 1,
+      "last_failure_date": "2026-11-27",
+      "failure_type": "DownloadError",
+      "retry_after_date": "2026-11-28",
+      "retry_attempted": false
     },
     {
       "type": "shorts",
@@ -113,8 +128,13 @@
         "طارق صالح",
         "سياسة اليمن"
       ],
-      "status": "pending",
-      "youtube_url": null
+      "status": "failed_retryable",
+      "youtube_url": null,
+      "confirmed_failures": 1,
+      "last_failure_date": "2026-11-27",
+      "failure_type": "DownloadError",
+      "retry_after_date": "2026-11-28",
+      "retry_attempted": false
     },
     {
       "type": "shorts",
@@ -138,8 +158,13 @@
         "حقن دماء اليمنيين",
         "أخبار عدن والرياض"
       ],
-      "status": "pending",
-      "youtube_url": null
+      "status": "failed_retryable",
+      "youtube_url": null,
+      "confirmed_failures": 1,
+      "last_failure_date": "2026-11-27",
+      "failure_type": "DownloadError",
+      "retry_after_date": "2026-11-28",
+      "retry_attempted": false
     },
     {
       "type": "shorts",
@@ -163,8 +188,13 @@
         "المجلس الانتقالي",
         "المستجدات اليمنية"
       ],
-      "status": "pending",
-      "youtube_url": null
+      "status": "failed_retryable",
+      "youtube_url": null,
+      "confirmed_failures": 1,
+      "last_failure_date": "2026-11-27",
+      "failure_type": "DownloadError",
+      "retry_after_date": "2026-11-28",
+      "retry_attempted": false
     },
     {
       "type": "shorts",
@@ -188,8 +218,13 @@
         "تسريب معلومات عسكرية",
         "حرب اليمن الاستخباراتية"
       ],
-      "status": "pending",
-      "youtube_url": null
+      "status": "failed_retryable",
+      "youtube_url": null,
+      "confirmed_failures": 1,
+      "last_failure_date": "2026-11-27",
+      "failure_type": "DownloadError",
+      "retry_after_date": "2026-11-28",
+      "retry_attempted": false
     },
     {
       "type": "shorts",
@@ -213,8 +248,13 @@
         "القضية الجنوبية",
         "مفاوضات اليمن الرياض"
       ],
-      "status": "pending",
-      "youtube_url": null
+      "status": "failed_retryable",
+      "youtube_url": null,
+      "confirmed_failures": 1,
+      "last_failure_date": "2026-11-27",
+      "failure_type": "DownloadError",
+      "retry_after_date": "2026-11-28",
+      "retry_attempted": false
     }
   ]
 }
