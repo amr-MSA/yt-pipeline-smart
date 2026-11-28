@@ -18,6 +18,7 @@ def probe_source_url(url: str, cookies_env: str | None = None) -> dict:
         "skip_download": True,
         "noplaylist": True,
         "js_runtimes": {"deno": {}},
+        "remote_components": {"ejs:github"},
     }
     with temporary_cookie_file(cookies_env) as cookie_path:
         if cookie_path:

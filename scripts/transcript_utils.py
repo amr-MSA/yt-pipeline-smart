@@ -150,6 +150,7 @@ def _fetch_with_ytdlp(url: str, work_dir: str, cookies_env: str | None = None) -
         "quiet": True,
         "noprogress": True,
         "js_runtimes": {"deno": {}},
+        "remote_components": {"ejs:github"},
     }
     with temporary_cookie_file(cookies_env) as cookie_path:
         if cookie_path:
