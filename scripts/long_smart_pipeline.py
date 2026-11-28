@@ -451,6 +451,9 @@ def _download_clip_range(url: str, start: float, end: float, out_path: str, cook
         "quiet": True,
         "noprogress": True,
         "js_runtimes": {"deno": {}},
+        # YouTube may serve player builds that need a newer EJS solver than
+        # the package bundled with the pinned yt-dlp release.
+        "remote_components": {"ejs:github"},
     }
     with temporary_cookie_file(cookies_env) as cookie_path:
         if cookie_path:

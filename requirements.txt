@@ -1,4 +1,4 @@
-yt-dlp[default,curl-cffi]==2026.10.26
+yt-dlp[default,curl-cffi]==2026.11.23
 curl-cffi==0.17.0
 youtube-transcript-api>=1.2.3
 google-auth>=2.29.0
