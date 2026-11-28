@@ -34,8 +34,13 @@
         "قضايا حرب اليمن",
         "أسلحة أمريكية اليمن"
       ],
-      "status": "pending",
-      "youtube_url": null
+      "status": "failed_retryable",
+      "youtube_url": null,
+      "confirmed_failures": 1,
+      "last_failure_date": "2026-11-28",
+      "failure_type": "DownloadError",
+      "retry_after_date": "2026-11-29",
+      "retry_attempted": false
     }
   ]
 }

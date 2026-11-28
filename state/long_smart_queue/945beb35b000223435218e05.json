@@ -36,13 +36,13 @@
         "عمر بن عبد العزيز",
         "العمالة اليمنية"
       ],
-      "status": "failed_retryable",
+      "status": "skipped",
       "youtube_url": null,
-      "confirmed_failures": 1,
-      "last_failure_date": "2026-11-27",
+      "confirmed_failures": 2,
+      "last_failure_date": "2026-11-28",
       "failure_type": "DownloadError",
-      "retry_after_date": "2026-11-28",
-      "retry_attempted": false
+      "retry_attempted": false,
+      "skip_reason": "confirmed_failure_after_retry"
     },
     {
       "type": "shorts",
@@ -67,13 +67,13 @@
         "كارثة اليمن الإنسانية",
         "حقوق المدنيين"
       ],
-      "status": "failed_retryable",
+      "status": "skipped",
       "youtube_url": null,
-      "confirmed_failures": 1,
-      "last_failure_date": "2026-11-27",
+      "confirmed_failures": 2,
+      "last_failure_date": "2026-11-28",
       "failure_type": "DownloadError",
-      "retry_after_date": "2026-11-28",
-      "retry_attempted": false
+      "retry_attempted": false,
+      "skip_reason": "confirmed_failure_after_retry"
     },
     {
       "type": "shorts",
@@ -97,13 +97,13 @@
         "العلاقات اليمنية السعودية",
         "الشعب اليمني"
       ],
-      "status": "failed_retryable",
+      "status": "skipped",
       "youtube_url": null,
-      "confirmed_failures": 1,
-      "last_failure_date": "2026-11-27",
+      "confirmed_failures": 2,
+      "last_failure_date": "2026-11-28",
       "failure_type": "DownloadError",
-      "retry_after_date": "2026-11-28",
-      "retry_attempted": false
+      "retry_attempted": false,
+      "skip_reason": "confirmed_failure_after_retry"
     },
     {
       "type": "shorts",
@@ -128,13 +128,13 @@
         "طارق صالح",
         "سياسة اليمن"
       ],
-      "status": "failed_retryable",
+      "status": "skipped",
       "youtube_url": null,
-      "confirmed_failures": 1,
-      "last_failure_date": "2026-11-27",
+      "confirmed_failures": 2,
+      "last_failure_date": "2026-11-28",
       "failure_type": "DownloadError",
-      "retry_after_date": "2026-11-28",
-      "retry_attempted": false
+      "retry_attempted": false,
+      "skip_reason": "confirmed_failure_after_retry"
     },
     {
       "type": "shorts",
@@ -158,13 +158,13 @@
         "حقن دماء اليمنيين",
         "أخبار عدن والرياض"
       ],
-      "status": "failed_retryable",
+      "status": "skipped",
       "youtube_url": null,
-      "confirmed_failures": 1,
-      "last_failure_date": "2026-11-27",
+      "confirmed_failures": 2,
+      "last_failure_date": "2026-11-28",
       "failure_type": "DownloadError",
-      "retry_after_date": "2026-11-28",
-      "retry_attempted": false
+      "retry_attempted": false,
+      "skip_reason": "confirmed_failure_after_retry"
     },
     {
       "type": "shorts",
@@ -188,13 +188,13 @@
         "المجلس الانتقالي",
         "المستجدات اليمنية"
       ],
-      "status": "failed_retryable",
+      "status": "skipped",
       "youtube_url": null,
-      "confirmed_failures": 1,
-      "last_failure_date": "2026-11-27",
+      "confirmed_failures": 2,
+      "last_failure_date": "2026-11-28",
       "failure_type": "DownloadError",
-      "retry_after_date": "2026-11-28",
-      "retry_attempted": false
+      "retry_attempted": false,
+      "skip_reason": "confirmed_failure_after_retry"
     },
     {
       "type": "shorts",
@@ -218,13 +218,13 @@
         "تسريب معلومات عسكرية",
         "حرب اليمن الاستخباراتية"
       ],
-      "status": "failed_retryable",
+      "status": "skipped",
       "youtube_url": null,
-      "confirmed_failures": 1,
-      "last_failure_date": "2026-11-27",
+      "confirmed_failures": 2,
+      "last_failure_date": "2026-11-28",
       "failure_type": "DownloadError",
-      "retry_after_date": "2026-11-28",
-      "retry_attempted": false
+      "retry_attempted": false,
+      "skip_reason": "confirmed_failure_after_retry"
     },
     {
       "type": "shorts",
@@ -248,13 +248,13 @@
         "القضية الجنوبية",
         "مفاوضات اليمن الرياض"
       ],
-      "status": "failed_retryable",
+      "status": "skipped",
       "youtube_url": null,
-      "confirmed_failures": 1,
-      "last_failure_date": "2026-11-27",
+      "confirmed_failures": 2,
+      "last_failure_date": "2026-11-28",
       "failure_type": "DownloadError",
-      "retry_after_date": "2026-11-28",
-      "retry_attempted": false
+      "retry_attempted": false,
+      "skip_reason": "confirmed_failure_after_retry"
     }
   ]
 }
